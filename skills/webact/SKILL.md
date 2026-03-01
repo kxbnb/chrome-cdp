@@ -141,6 +141,8 @@ When given a goal, follow this loop:
 
 6. **Use CSS selectors for targeting.** When you need to click or type into a specific element, identify it from the DOM output using CSS selectors (id, class, aria-label, data-testid, or structural selectors).
 
+7. **Clean up tabs.** When you open a tab with `newtab` for a subtask, `close` it when you're done and switch back to your previous tab. Before reporting a task as complete, run `tabs` to check for any tabs you forgot to close. Don't leave orphaned tabs behind.
+
 </HARD-RULES>
 
 ## Getting Started
