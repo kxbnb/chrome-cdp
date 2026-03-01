@@ -135,7 +135,7 @@ When given a goal, follow this loop:
 
 3. **Report actual content.** When the goal is information retrieval, extract and present the actual text from the page. Do not summarize what you think is there - show what IS there.
 
-4. **Stop when blocked.** If you encounter a login wall, CAPTCHA, 2FA prompt, or cookie consent that blocks progress, first run `activate` to bring the browser window to the front so the user can see it, then tell the user. Do not guess credentials or attempt to bypass security.
+4. **Stop when blocked.** If you encounter a login wall, CAPTCHA, 2FA prompt, or cookie consent that blocks progress, first run `activate` to bring the browser window to the front so the user can see it, then tell the user. Do not guess credentials or attempt to bypass security. Once the blocker is resolved and you resume automation, run `minimize` before your next action so the browser doesn't steal focus from the user. Minimizing does not affect page focus — the active element and caret position are preserved.
 
 5. **Wait for dynamic content.** After clicks that trigger page loads, use `waitfornav` or `waitfor <selector>` before reading DOM.
 
