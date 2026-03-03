@@ -6,22 +6,13 @@ No Playwright, no MCP, no browser automation frameworks. Raw CDP over WebSocket.
 
 ## Install
 
-### All agents (Cursor, Codex, Windsurf, Cline, Copilot, OpenCode, Goose, and more)
-
 ```bash
 npx skills add kilospark/webact
 ```
 
-Powered by Vercel's [skills](https://github.com/vercel-labs/skills) CLI.
+Works with Claude Code, Cursor, Codex, Windsurf, Cline, Copilot, OpenCode, Goose, and [40+ agents](https://github.com/vercel-labs/skills). Powered by Vercel's [skills](https://github.com/vercel-labs/skills) CLI.
 
 > **Note (Codex):** Codex's sandbox blocks local networking by default. To allow CDP connections, add a rule to allow `node` access to `localhost` on the CDP port (auto-discovered at launch), or run with `--full-auto` mode.
-
-### Claude Code
-
-```
-/plugin marketplace add kilospark/webact
-/plugin install webact@webact
-```
 
 ### Manual
 
@@ -159,6 +150,7 @@ Several tools give AI agents browser control on top of Playwright: [agent-browse
 | **Install size** | 196 KB (bundled, zero deps) | ~200 MB+ (node_modules + Chromium download) |
 | **Setup** | `npm install -g` + skill registration | npm install + browser download |
 | **Uses your browser** | Yes - your Chrome, your cookies, your logins | No - launches bundled Chromium with clean state |
+| **User agent** | Your real Chrome user agent - no bot fingerprint | Modified Playwright/Chromium UA - detectable by sites |
 | **Headed mode** | Always - you see what the agent sees | Headless by default |
 | **Auth / logins** | Already signed in - uses your real browser session | Requires auth setup, state persistence, or login flows |
 
