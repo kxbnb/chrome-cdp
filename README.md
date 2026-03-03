@@ -61,26 +61,29 @@ The `webact` CLI wraps CDP:
 
 ```bash
 webact launch                  # Start browser, create session
+webact connect                 # Attach to already-running Chrome (no launch)
 webact navigate <url>          # Go to a URL
 webact back                    # Go back in history
 webact forward                 # Go forward in history
 webact reload                  # Reload the current page
 webact dom                     # Get compact DOM (~4000 chars)
 webact dom <selector>          # Get DOM subtree
+webact dom --full              # Full DOM without truncation
 webact axtree                  # Get accessibility tree (semantic roles + names)
 webact axtree -i               # Interactive elements with ref numbers
 webact axtree <selector>       # Get AX tree for a specific element
 webact observe                 # Show interactive elements as ready-to-use commands
 webact screenshot              # Capture screenshot
 webact pdf [path]              # Save page as PDF
-webact click <selector>        # Click element (waits up to 5s, scrolls into view)
-webact doubleclick <selector>  # Double-click an element
-webact rightclick <selector>   # Right-click an element (context menu)
-webact hover <selector>        # Hover over an element (tooltips/menus)
+webact click <sel|x,y|--text>  # Click by selector, coordinates, or text match
+webact doubleclick <sel|x,y|--text>  # Double-click
+webact rightclick <sel|x,y|--text>   # Right-click (context menu)
+webact hover <sel|x,y|--text>        # Hover (tooltips/menus)
 webact focus <selector>        # Focus an element without clicking
 webact clear <selector>        # Clear an input field or contenteditable
 webact type <selector> <text>  # Type into an input (focuses first)
 webact keyboard <text>         # Type at current caret position (no selector)
+webact paste <text>            # Paste via clipboard event (for rich editors)
 webact select <sel> <value>    # Select option(s) from a <select> dropdown
 webact upload <sel> <file>     # Upload file(s) to a file input
 webact drag <from> <to>        # Drag from one selector to another
@@ -96,10 +99,10 @@ webact cookies delete <name>   # Delete a cookie
 webact cookies clear           # Clear all cookies
 webact console                 # Show recent console output
 webact console errors          # Show only JS errors
-webact block images css        # Block resource types (images/css/fonts/media/scripts)
+webact console listen          # Real-time console output (until Ctrl+C)
+webact block <pattern>         # Block requests: images, css, fonts, media, scripts, or URL
 webact block off               # Disable request blocking
-webact viewport mobile         # Set viewport (presets: mobile, tablet, desktop)
-webact viewport 1024 768       # Set viewport with exact dimensions
+webact viewport <preset|w h>   # Set viewport (mobile, tablet, desktop, iphone, ipad)
 webact frames                  # List all frames/iframes
 webact frame <id|sel>          # Switch to a frame
 webact frame main              # Return to main frame
@@ -109,6 +112,8 @@ webact tabs                    # List this session's tabs
 webact tab <id>                # Switch to a session-owned tab
 webact newtab [url]            # Open a new tab in this session
 webact close                   # Close current tab
+webact activate                # Bring browser window to front (macOS)
+webact minimize                # Minimize browser window (macOS)
 webact run <sessionId>         # Run command from session command file
 ```
 

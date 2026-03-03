@@ -6041,12 +6041,13 @@ async function dispatch(command, args) {
 async function main() {
   const [, , command, ...args] = process.argv;
   if (!command) {
-    console.log(`webact v2.8.0 - Browser automation via Chrome DevTools Protocol
+    console.log(`webact v2.9.0 - Browser automation via Chrome DevTools Protocol
 
 Usage: webact <command> [args]
 
 Commands:
   launch              Launch Chrome and start a session
+  connect             Attach to already-running Chrome (no launch)
   navigate <url>      Navigate to URL
   back                Go back in history
   forward             Go forward in history
@@ -6080,7 +6081,7 @@ Commands:
   console [show|errors|listen]    View console output or JS errors
   block <pattern>     Block requests: images, css, fonts, media, scripts, or URL
   block off           Disable request blocking
-  viewport <w> <h>    Set viewport size (or preset: mobile, tablet, desktop)
+  viewport <w> <h>    Set viewport size (or preset: mobile, tablet, desktop, iphone, ipad)
   frames              List all frames/iframes on the page
   frame <id|sel>      Switch to a frame (use "frame main" to return)
   download [path|list] Set download dir or list downloaded files
