@@ -3888,10 +3888,22 @@ function createCDP(wsUrl) {
   });
 }
 var PAGE_BRIEF_SCRIPT = `(function() {
+  function qsa(sel) {
+    const results = [...document.querySelectorAll(sel)];
+    (function walk(root) {
+      for (const el of root.querySelectorAll('*')) {
+        if (el.shadowRoot) {
+          results.push(...el.shadowRoot.querySelectorAll(sel));
+          walk(el.shadowRoot);
+        }
+      }
+    })(document);
+    return results;
+  }
   const t = document.title, u = location.href;
   const seen = new Set();
   const inputs = [], buttons = [], links = [];
-  document.querySelectorAll('input:not([type=hidden]),textarea,select').forEach(el => {
+  qsa('input:not([type=hidden]),textarea,select').forEach(el => {
     if (!el.offsetParent && getComputedStyle(el).display === 'none') return;
     if (inputs.length >= 5) return;
     const key = el.name || el.id || el.type;
@@ -3903,7 +3915,7 @@ var PAGE_BRIEF_SCRIPT = `(function() {
     if (el.placeholder) a.push(JSON.stringify(el.placeholder.substring(0, 40)));
     inputs.push('[' + a.join(' ') + ']');
   });
-  document.querySelectorAll('button,[role=button],input[type=submit]').forEach(el => {
+  qsa('button,[role=button],input[type=submit]').forEach(el => {
     if (!el.offsetParent && getComputedStyle(el).display === 'none') return;
     if (buttons.length >= 5) return;
     const txt = (el.textContent || el.value || '').trim().substring(0, 30);
@@ -3911,15 +3923,15 @@ var PAGE_BRIEF_SCRIPT = `(function() {
     seen.add(txt);
     buttons.push('[button ' + JSON.stringify(txt) + ']');
   });
-  document.querySelectorAll('a[href]').forEach(el => {
+  qsa('a[href]').forEach(el => {
     if (!el.offsetParent) return;
     if (links.length >= 8) return;
     const txt = el.textContent.trim().substring(0, 25);
     if (txt && !seen.has(txt)) { seen.add(txt); links.push(txt); }
   });
-  const totalInputs = document.querySelectorAll('input:not([type=hidden]),textarea,select').length;
-  const totalButtons = document.querySelectorAll('button,[role=button],input[type=submit]').length;
-  const totalLinks = document.querySelectorAll('a[href]').length;
+  const totalInputs = qsa('input:not([type=hidden]),textarea,select').length;
+  const totalButtons = qsa('button,[role=button],input[type=submit]').length;
+  const totalLinks = qsa('a[href]').length;
   const short = u.length > 80 ? u.substring(0, 80) + '...' : u;
   let r = '--- ' + short + ' | ' + t + ' ---';
   if (inputs.length) r += '\\n' + inputs.join(' ');
@@ -4274,6 +4286,11 @@ async function cmdDom(selector, full) {
         for (const child of node.childNodes) {
           childOut += extract(child, depth + (showTag ? 1 : 0));
         }
+        if (node.shadowRoot) {
+          for (const child of node.shadowRoot.childNodes) {
+            childOut += extract(child, depth + (showTag ? 1 : 0));
+          }
+        }
         out += childOut;
 
         if (showTag && childOut.includes('\\n')) {
@@ -4365,7 +4382,13 @@ async function locateElementByText(cdp, text) {
         const lower = target.toLowerCase();
         let best = null;
         let bestLen = Infinity;
-        for (const el of document.querySelectorAll('*')) {
+        function* allElements(root) {
+          for (const el of root.querySelectorAll('*')) {
+            yield el;
+            if (el.shadowRoot) yield* allElements(el.shadowRoot);
+          }
+        }
+        for (const el of allElements(document)) {
           if (el.offsetParent === null && el.tagName !== 'BODY' && el.tagName !== 'HTML') continue;
           const t = (el.textContent || '').trim();
           if (!t) continue;
@@ -5080,7 +5103,7 @@ async function fetchInteractiveElements(cdp) {
     }
   }
   await cdp.send("Accessibility.enable");
-  const axResult = await cdp.send("Accessibility.getFullAXTree", { depth: 8 });
+  const axResult = await cdp.send("Accessibility.getFullAXTree");
   const nodes = axResult.nodes;
   const nodeMap = /* @__PURE__ */ new Map();
   for (const n of nodes) nodeMap.set(n.nodeId, n);
@@ -5168,7 +5191,7 @@ async function cmdAxtree(selector, interactiveOnly) {
       });
       nodes = result.nodes;
     } else {
-      const result = await cdp.send("Accessibility.getFullAXTree", { depth: 8 });
+      const result = await cdp.send("Accessibility.getFullAXTree");
       nodes = result.nodes;
     }
     const SKIP_ROLES = /* @__PURE__ */ new Set(["InlineTextBox", "LineBreak"]);

@@ -236,6 +236,7 @@ Some apps have non-standard DOMs that require specific approaches.
 
 **Portals, shadow DOM, and overlays:**
 - Modal dialogs, dropdowns, and popups often render in portal containers outside the main DOM tree — CSS selectors based on the triggering element's context won't find them
-- Use `click --text "Close"` or `click --text "Save"` to target overlay buttons by their visible text
+- `dom` traverses open shadow roots — elements inside web components (Lit, Shoelace, Atlaskit, etc.) are visible in the output
+- `axtree` returns the full accessibility tree without depth limits — deep overlays, nested menus, and complex widget trees are included
+- `click --text "Close"` works across shadow DOM boundaries — use it when CSS selectors can't reach shadow DOM elements
 - For elements with no distinguishing text, take a `screenshot`, identify the pixel coordinates, then `click 550,197`
-- Shadow DOM elements are invisible to `document.querySelector` — use text search or coordinates instead
