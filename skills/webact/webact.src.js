@@ -2390,7 +2390,9 @@ async function main() {
   const [,, command, ...args] = process.argv;
 
   if (!command) {
-    console.log(`Usage: webact.js <command> [args]
+    console.log(`webact v2.7.0 - Browser automation via Chrome DevTools Protocol
+
+Usage: webact <command> [args]
 
 Commands:
   launch              Launch Chrome and start a session
