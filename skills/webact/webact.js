@@ -6018,7 +6018,7 @@ async function dispatch(command, args) {
 async function main() {
   const [, , command, ...args] = process.argv;
   if (!command) {
-    console.log(`webact v2.7.0 - Browser automation via Chrome DevTools Protocol
+    console.log(`webact v2.8.0 - Browser automation via Chrome DevTools Protocol
 
 Usage: webact <command> [args]
 
