@@ -3640,7 +3640,7 @@ var require_package = __commonJS({
   "package.json"(exports2, module2) {
     module2.exports = {
       name: "@kilospark/webact",
-      version: "2.10.1",
+      version: "2.11.0",
       description: "CLI for browser automation via Chrome DevTools Protocol",
       main: "webact.js",
       bin: {
@@ -5087,6 +5087,26 @@ async function cmdClose() {
     console.log("No tabs remaining in this session.");
   }
 }
+async function resolveTextContent(cdp, entries) {
+  if (entries.length === 0) return /* @__PURE__ */ new Map();
+  const capped = entries.slice(0, 200);
+  const results = /* @__PURE__ */ new Map();
+  await Promise.all(capped.map(async ({ backendDOMNodeId, idx }) => {
+    try {
+      const resolved = await cdp.send("DOM.resolveNode", { backendNodeId: backendDOMNodeId });
+      if (!resolved.object?.objectId) return;
+      const r = await cdp.send("Runtime.callFunctionOn", {
+        objectId: resolved.object.objectId,
+        functionDeclaration: 'function() { var t = (this.textContent || "").trim(); if (!t) t = this.getAttribute("aria-label") || ""; return t.trim().substring(0, 80); }',
+        returnByValue: true
+      });
+      const text = r.result?.value;
+      if (text) results.set(idx, text);
+    } catch {
+    }
+  }));
+  return results;
+}
 async function fetchInteractiveElements(cdp) {
   const INTERACTIVE_ROLES = /* @__PURE__ */ new Set([
     "button",
@@ -5166,7 +5186,8 @@ async function fetchInteractiveElements(cdp) {
   }
   if (nodes[0]) walk(nodes[0]);
   const elements = [];
-  let output = "";
+  const outputLines = [];
+  const namelessIndices = /* @__PURE__ */ new Set();
   for (let i = 0; i < interactiveNodes.length; i++) {
     const node = interactiveNodes[i];
     const role = node.role?.value || "";
@@ -5184,11 +5205,9 @@ async function fetchInteractiveElements(cdp) {
     }
     const propStr = Object.entries(props).map(([k, v]) => `${k}=${v}`).join(" ");
     if (propStr) line += ` [${propStr}]`;
-    output += line + "\n";
+    outputLines.push(line);
     elements.push({ role, name, value });
-  }
-  if (output.length > 6e3) {
-    output = output.substring(0, 6e3) + "\n... (truncated)";
+    if (!name) namelessIndices.add(i);
   }
   await cdp.send("Runtime.evaluate", { expression: SELECTOR_GEN_SCRIPT });
   await cdp.send("DOM.enable");
@@ -5198,15 +5217,34 @@ async function fetchInteractiveElements(cdp) {
       if (!node.backendDOMNodeId) return;
       const resolved = await cdp.send("DOM.resolveNode", { backendNodeId: node.backendDOMNodeId });
       if (!resolved.object?.objectId) return;
-      const sResult = await cdp.send("Runtime.callFunctionOn", {
-        objectId: resolved.object.objectId,
-        functionDeclaration: "function() { return window.__webactGenSelector(this); }",
-        returnByValue: true
-      });
-      if (sResult.result?.value) refMap[i + 1] = sResult.result.value;
+      if (namelessIndices.has(i)) {
+        const sResult = await cdp.send("Runtime.callFunctionOn", {
+          objectId: resolved.object.objectId,
+          functionDeclaration: 'function() { var s = window.__webactGenSelector(this); var t = (this.textContent || "").trim(); if (!t) t = this.getAttribute("aria-label") || ""; return { selector: s, textContent: t.trim().substring(0, 80) }; }',
+          returnByValue: true
+        });
+        const val = sResult.result?.value;
+        if (val?.selector) refMap[i + 1] = val.selector;
+        if (val?.textContent) {
+          elements[i].name = val.textContent;
+          const rolePrefix = `[${i + 1}] ${elements[i].role}`;
+          outputLines[i] = rolePrefix + ` "${val.textContent}"` + outputLines[i].substring(rolePrefix.length);
+        }
+      } else {
+        const sResult = await cdp.send("Runtime.callFunctionOn", {
+          objectId: resolved.object.objectId,
+          functionDeclaration: "function() { return window.__webactGenSelector(this); }",
+          returnByValue: true
+        });
+        if (sResult.result?.value) refMap[i + 1] = sResult.result.value;
+      }
     } catch {
     }
   }));
+  let output = outputLines.join("\n") + (outputLines.length ? "\n" : "");
+  if (output.length > 6e3) {
+    output = output.substring(0, 6e3) + "\n... (truncated)";
+  }
   await cdp.send("Accessibility.disable");
   const state = loadSessionState();
   state.refMap = refMap;
@@ -5284,7 +5322,11 @@ async function cmdAxtree(selector, interactiveOnly) {
           }
           const propStr = Object.entries(props).map(([k, v]) => `${k}=${v}`).join(" ");
           if (propStr) line += ` [${propStr}]`;
-          output += line + "\n";
+          const lineIdx = outputLines.length;
+          outputLines.push(line);
+          if (!name && node.backendDOMNodeId) {
+            namelessEntries.push({ backendDOMNodeId: node.backendDOMNodeId, idx: lineIdx, refIdx: idx, role });
+          }
           idx++;
         }
         for (const cid of node.childIds || []) {
@@ -5294,8 +5336,21 @@ async function cmdAxtree(selector, interactiveOnly) {
       };
       var collectInteractive = collectInteractive2;
       let idx = 1;
-      let output = "";
+      const outputLines = [];
+      const namelessEntries = [];
       if (nodes[0]) collectInteractive2(nodes[0]);
+      if (namelessEntries.length > 0) {
+        await cdp.send("DOM.enable");
+        const resolved = await resolveTextContent(cdp, namelessEntries);
+        for (const entry of namelessEntries) {
+          const text = resolved.get(entry.idx);
+          if (text) {
+            const rolePrefix = `[${entry.refIdx}] ${entry.role}`;
+            outputLines[entry.idx] = rolePrefix + ` "${text}"` + outputLines[entry.idx].substring(rolePrefix.length);
+          }
+        }
+      }
+      let output = outputLines.join("\n") + (outputLines.length ? "\n" : "");
       if (output.length > 6e3) {
         output = output.substring(0, 6e3) + "\n... (truncated)";
       }
@@ -5319,7 +5374,13 @@ async function cmdAxtree(selector, interactiveOnly) {
           }
           const indent = "  ".repeat(Math.min(depth, 6));
           let line = `${indent}- ${role}`;
-          if (name) line += ` "${name.substring(0, 80)}"`;
+          if (name) {
+            line += ` "${name.substring(0, 80)}"`;
+          } else if (RESOLVE_ROLES.has(role) && node.backendDOMNodeId) {
+            const placeholder = `__WEBACT_NL_${namelessNodes.length}__`;
+            namelessNodes.push({ backendDOMNodeId: node.backendDOMNodeId, idx: namelessNodes.length, placeholder });
+            line += ` ${placeholder}`;
+          }
           if (value) line += ` value="${value.substring(0, 60)}"`;
           const props = {};
           for (const p of node.properties || []) {
@@ -5341,10 +5402,24 @@ async function cmdAxtree(selector, interactiveOnly) {
         return out;
       };
       var formatNode = formatNode2;
+      const RESOLVE_ROLES = /* @__PURE__ */ new Set([...INTERACTIVE_ROLES, "heading", "img", "cell", "columnheader", "rowheader"]);
+      const namelessNodes = [];
       const root = nodes[0];
       let output = "";
       if (root) {
         output = formatNode2(root, 0);
+      }
+      if (namelessNodes.length > 0) {
+        await cdp.send("DOM.enable");
+        const resolved = await resolveTextContent(cdp, namelessNodes);
+        for (const entry of namelessNodes) {
+          const text = resolved.get(entry.idx);
+          if (text) {
+            output = output.replace(entry.placeholder, `"${text}"`);
+          } else {
+            output = output.replace(` ${entry.placeholder}`, "");
+          }
+        }
       }
       if (output.length > 6e3) {
         output = output.substring(0, 6e3) + "\n... (truncated)";
@@ -6088,6 +6163,10 @@ async function dispatch(command, args) {
 }
 async function main() {
   const [, , command, ...args] = process.argv;
+  if (command === "--version" || command === "-v") {
+    console.log(VERSION);
+    process.exit(0);
+  }
   if (!command) {
     console.log(`webact v${VERSION} - Browser automation via Chrome DevTools Protocol
 
