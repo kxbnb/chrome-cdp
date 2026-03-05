@@ -116,6 +116,8 @@ Each session creates and owns its own tabs. Sessions never reuse tabs from other
 
 This means two agents can work side by side in the same Chrome instance without interfering with each other.
 
+**Shared Chrome awareness:** When multiple agents share Chrome, link clicks on sites like Slack can hijack your tab (e.g. Slack's link unfurling navigates to Jira). Always record your tab ID after `launch`/`newtab` and verify you're on the right tab before acting. If your tab's URL has changed unexpectedly, use `tab <id>` to switch back or `tabs` to audit your session.
+
 ## The Perceive-Act Loop
 
 When given a goal, follow this loop:
@@ -145,6 +147,8 @@ When given a goal, follow this loop:
 6. **Use CSS selectors for targeting.** When you need to click or type into a specific element, identify it from the DOM output using CSS selectors (id, class, aria-label, data-testid, or structural selectors).
 
 7. **Clean up tabs.** When you open a tab with `newtab` for a subtask, `close` it when you're done and switch back to your previous tab. Before reporting a task as complete, run `tabs` to check for any tabs you forgot to close. Don't leave orphaned tabs behind.
+
+8. **Track your tab IDs.** After `launch` or `newtab`, note the tab ID from the output. Before every action, confirm you're on the expected tab — other agents or link redirects (e.g. Slack unfurling a Jira link) can change what's loaded in your tab. If something looks wrong, run `tabs` to see your session's tabs and `tab <id>` to switch back. Never assume you're still on the same page after a click that could trigger cross-site navigation.
 
 </HARD-RULES>
 
@@ -215,33 +219,12 @@ webact keyboard " check this out"
 
 ## Complex Web Apps
 
-Some apps have non-standard DOMs that require specific approaches.
-
-**Google Docs:**
-- Use `keyboard` (not `type`) — Google Docs has a custom editor, not standard inputs
-- Use `paste` for inserting blocks of text — faster and more reliable than `keyboard` for multi-line content
-- Heading shortcuts: `press Meta+Alt+1` through `press Meta+Alt+6` (NOT `Ctrl+Alt` — see Mac keyboard note above)
-- Scrolling: Use `scroll .kix-appview-editor down 500` — page-level scroll doesn't reach the document content
-
-**Slack:**
-- Message composition: Click the message input, then use `keyboard` to type
-- Message extraction: Use `eval` to query Slack's virtual DOM — standard CSS selectors are unreliable due to virtual scrolling
-- Example: `eval [...document.querySelectorAll('[data-qa="virtual-list-item"]')].map(el => el.textContent).join('\n')`
-- `axtree` is a non-starter for Slack content: `-i` only shows chrome-level controls (tabs, search, sidebar slider), and full mode returns empty names for channels (Slack renders names via CSS/virtual DOM, not accessible text). Use `eval` for channel discovery and message reading.
-- The `navigate` auto-brief is useful for spotting unread badges (e.g. "DMs2", "Activity1")
-
-**Gmail:**
-- Ref-based clicking from `observe`/`axtree -i` doesn't work for Gmail checkboxes — refs point to wrapper divs that don't trigger the actual checkbox state change. Use CSS selectors instead.
-
-**General rich editors (Notion, Quill, ProseMirror, etc.):**
-- Prefer `paste` over `keyboard` for multi-line text — many editors handle paste events specially
-- Use `keyboard` for short inline text and @mentions
-- Use `eval` when you need to extract content from editors with virtual rendering
-- If `paste` doesn't work for a specific app, fall back to `eval` with a custom ClipboardEvent
+For site-specific tips (Google Docs, Slack, Jira, Gmail, rich editors), see `sites.md` in this skill's directory.
 
 **Portals, shadow DOM, and overlays:**
 - Modal dialogs, dropdowns, and popups often render in portal containers outside the main DOM tree — CSS selectors based on the triggering element's context won't find them
+- `click --text` finds elements inside portals (`position: fixed` overlays) and across shadow DOM boundaries
 - `dom` traverses open shadow roots — elements inside web components (Lit, Shoelace, Atlaskit, etc.) are visible in the output
 - `axtree` returns the full accessibility tree without depth limits — deep overlays, nested menus, and complex widget trees are included
-- `click --text "Close"` works across shadow DOM boundaries — use it when CSS selectors can't reach shadow DOM elements
 - For elements with no distinguishing text, take a `screenshot`, identify the pixel coordinates, then `click 550,197`
+- When `dom` and `click --text` fail on portal elements, use `eval` to find and `.click()` them directly

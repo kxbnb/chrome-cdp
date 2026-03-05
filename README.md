@@ -10,6 +10,12 @@ No Playwright, no MCP, no browser automation frameworks. Raw CDP over WebSocket.
 npx skills add kilospark/webact
 ```
 
+Already installed? Update to latest:
+
+```bash
+npx skills update
+```
+
 Works with Claude Code, Cursor, Codex, Windsurf, Cline, Copilot, OpenCode, Goose, and [40+ agents](https://github.com/vercel-labs/skills). Powered by Vercel's [skills](https://github.com/vercel-labs/skills) CLI.
 
 > **Note (Codex):** Codex's sandbox blocks local networking by default. To allow CDP connections, add a rule to allow `node` access to `localhost` on the CDP port (auto-discovered at launch), or run with `--full-auto` mode.

@@ -3640,7 +3640,7 @@ var require_package = __commonJS({
   "package.json"(exports2, module2) {
     module2.exports = {
       name: "@kilospark/webact",
-      version: "2.11.0",
+      version: "2.12.0",
       description: "CLI for browser automation via Chrome DevTools Protocol",
       main: "webact.js",
       bin: {
@@ -4437,7 +4437,10 @@ async function locateElementByText(cdp, text) {
           }
         }
         for (const el of allElements(document)) {
-          if (el.offsetParent === null && el.tagName !== 'BODY' && el.tagName !== 'HTML') continue;
+          if (el.offsetParent === null && el.tagName !== 'BODY' && el.tagName !== 'HTML') {
+            const s = getComputedStyle(el);
+            if (s.display === 'none' || (s.position !== 'fixed' && s.position !== 'sticky')) continue;
+          }
           const t = (el.textContent || '').trim();
           if (!t) continue;
           const tl = t.toLowerCase();
@@ -5010,8 +5013,9 @@ async function cmdEval(expression) {
     process.exit(1);
   }
   await withCDP(async (cdp) => {
+    const wrapped = `(() => { const __r = (${expression}); if (__r !== null && __r !== undefined && typeof __r === 'object') { return JSON.stringify(__r, (k, v) => v instanceof HTMLElement ? v.outerHTML.slice(0, 200) : v, 2); } return __r; })()`;
     const result = await cdp.send("Runtime.evaluate", {
-      expression,
+      expression: wrapped,
       returnByValue: true
     });
     if (result.exceptionDetails) {
@@ -5020,7 +5024,7 @@ async function cmdEval(expression) {
     }
     const val = result.result.value;
     if (val !== void 0) {
-      console.log(typeof val === "object" ? JSON.stringify(val, null, 2) : val);
+      console.log(val);
     } else {
       console.log(`(${result.result.type}: ${result.result.description || result.result.value})`);
     }

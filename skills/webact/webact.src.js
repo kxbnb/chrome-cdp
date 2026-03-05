@@ -865,7 +865,10 @@ async function locateElementByText(cdp, text) {
           }
         }
         for (const el of allElements(document)) {
-          if (el.offsetParent === null && el.tagName !== 'BODY' && el.tagName !== 'HTML') continue;
+          if (el.offsetParent === null && el.tagName !== 'BODY' && el.tagName !== 'HTML') {
+            const s = getComputedStyle(el);
+            if (s.display === 'none' || (s.position !== 'fixed' && s.position !== 'sticky')) continue;
+          }
           const t = (el.textContent || '').trim();
           if (!t) continue;
           const tl = t.toLowerCase();
@@ -1377,8 +1380,11 @@ async function cmdEval(expression) {
   if (!expression) { console.error('Usage: webact.js eval <js-expression>'); process.exit(1); }
 
   await withCDP(async (cdp) => {
+    // Auto-serialize: wrap expression so non-primitive results get JSON.stringify'd
+    // This prevents CDP returnByValue failures on arrays, NodeLists, etc.
+    const wrapped = `(() => { const __r = (${expression}); if (__r !== null && __r !== undefined && typeof __r === 'object') { return JSON.stringify(__r, (k, v) => v instanceof HTMLElement ? v.outerHTML.slice(0, 200) : v, 2); } return __r; })()`;
     const result = await cdp.send('Runtime.evaluate', {
-      expression,
+      expression: wrapped,
       returnByValue: true,
     });
     if (result.exceptionDetails) {
@@ -1387,7 +1393,7 @@ async function cmdEval(expression) {
     }
     const val = result.result.value;
     if (val !== undefined) {
-      console.log(typeof val === 'object' ? JSON.stringify(val, null, 2) : val);
+      console.log(val);
     } else {
       console.log(`(${result.result.type}: ${result.result.description || result.result.value})`);
     }
