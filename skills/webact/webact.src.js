@@ -178,6 +178,30 @@ function saveActionCache(cache) {
   fs.writeFileSync(ACTION_CACHE_FILE, JSON.stringify(pruned));
 }
 
+// --- Tab locking ---
+const TAB_LOCKS_FILE = path.join(TMP, 'webact-tab-locks.json');
+
+function loadTabLocks() {
+  try { return JSON.parse(fs.readFileSync(TAB_LOCKS_FILE, 'utf8')); }
+  catch { return {}; }
+}
+
+function saveTabLocks(locks) {
+  fs.writeFileSync(TAB_LOCKS_FILE, JSON.stringify(locks, null, 2));
+}
+
+function checkTabLock(tabId) {
+  const locks = loadTabLocks();
+  const lock = locks[tabId];
+  if (!lock) return null;
+  if (Date.now() > lock.expires) {
+    delete locks[tabId];
+    saveTabLocks(locks);
+    return null;
+  }
+  return lock;
+}
+
 // --- CDP Connection ---
 
 function httpGet(url) {
@@ -378,6 +402,11 @@ async function getPageBrief(cdp) {
 
 async function withCDP(fn) {
   const tab = await connectToTab();
+  // Check if another session has locked this tab
+  const lock = checkTabLock(tab.id);
+  if (lock && lock.sessionId !== currentSessionId) {
+    throw new Error(`Tab is locked by session ${lock.sessionId} (expires in ${Math.round((lock.expires - Date.now()) / 1000)}s). Use a different tab or wait.`);
+  }
   // Chrome returns ws://127.0.0.1:... but in WSL2 we need the host IP
   let wsUrl = tab.webSocketDebuggerUrl;
   if (IS_WSL && CDP_HOST !== '127.0.0.1') {
@@ -707,7 +736,7 @@ async function cmdNavigate(url) {
   });
 }
 
-async function cmdDom(selector, full) {
+async function cmdDom(selector, full, maxTokens) {
   const extractScript = `
     (function() {
       const SKIP_TAGS = new Set(['SCRIPT','STYLE','SVG','NOSCRIPT','LINK','META','HEAD']);
@@ -792,7 +821,14 @@ async function cmdDom(selector, full) {
       console.error('DOM extraction error:', result.exceptionDetails.text);
       process.exit(1);
     }
-    console.log(result.result.value);
+    let output = result.result.value;
+    if (maxTokens > 0) {
+      const charBudget = maxTokens * 4;
+      if (output.length > charBudget) {
+        output = output.substring(0, charBudget) + '\n... (truncated to ~' + maxTokens + ' tokens)';
+      }
+    }
+    console.log(output);
   });
 }
 
@@ -892,6 +928,95 @@ async function locateElementByText(cdp, text) {
   const loc = result.result.value;
   if (loc.error) { console.error(loc.error); process.exit(1); }
   return loc;
+}
+
+// --- Human-like input simulation ---
+
+function randomBetween(min, max) {
+  return min + Math.random() * (max - min);
+}
+
+async function humanMouseMove(cdp, fromX, fromY, toX, toY) {
+  const distance = Math.sqrt((toX - fromX) ** 2 + (toY - fromY) ** 2);
+  const duration = 100 + (distance / 2000) * 200 + Math.random() * 100;
+  const steps = Math.max(5, Math.min(30, Math.round(duration / 20)));
+
+  const cp1X = fromX + (toX - fromX) * 0.25 + (Math.random() - 0.5) * 50;
+  const cp1Y = fromY + (toY - fromY) * 0.25 + (Math.random() - 0.5) * 50;
+  const cp2X = fromX + (toX - fromX) * 0.75 + (Math.random() - 0.5) * 50;
+  const cp2Y = fromY + (toY - fromY) * 0.75 + (Math.random() - 0.5) * 50;
+
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    const u = 1 - t;
+    const x = u*u*u*fromX + 3*u*u*t*cp1X + 3*u*t*t*cp2X + t*t*t*toX + (Math.random() - 0.5) * 2;
+    const y = u*u*u*fromY + 3*u*u*t*cp1Y + 3*u*t*t*cp2Y + t*t*t*toY + (Math.random() - 0.5) * 2;
+    await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y });
+    await new Promise(r => setTimeout(r, 16 + Math.random() * 8));
+  }
+}
+
+async function humanClick(cdp, x, y) {
+  const startX = x + (Math.random() - 0.5) * 200 + 50;
+  const startY = y + (Math.random() - 0.5) * 200 + 50;
+  await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: startX, y: startY });
+  await humanMouseMove(cdp, startX, startY, x, y);
+  await new Promise(r => setTimeout(r, 50 + Math.random() * 150));
+  await cdp.send('Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button: 'left', clickCount: 1 });
+  await new Promise(r => setTimeout(r, 30 + Math.random() * 90));
+  const releaseX = x + (Math.random() - 0.5) * 2;
+  const releaseY = y + (Math.random() - 0.5) * 2;
+  await cdp.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: releaseX, y: releaseY, button: 'left', clickCount: 1 });
+}
+
+async function humanTypeText(cdp, text, fast) {
+  const baseDelay = fast ? 40 : 80;
+  const chars = [...text];
+  for (let i = 0; i < chars.length; i++) {
+    const char = chars[i];
+    await cdp.send('Input.dispatchKeyEvent', { type: 'keyDown', text: char, unmodifiedText: char });
+    await cdp.send('Input.dispatchKeyEvent', { type: 'keyUp', text: char, unmodifiedText: char });
+
+    let delay = baseDelay + Math.random() * (baseDelay / 2);
+    if (Math.random() < 0.05) delay += Math.random() * 500;
+    if (i > 0 && chars[i - 1] === char) delay /= 2;
+
+    if (Math.random() < 0.03 && i < chars.length - 1) {
+      const wrongChar = String.fromCharCode(97 + Math.floor(Math.random() * 26));
+      await cdp.send('Input.dispatchKeyEvent', { type: 'keyDown', text: wrongChar, unmodifiedText: wrongChar });
+      await cdp.send('Input.dispatchKeyEvent', { type: 'keyUp', text: wrongChar, unmodifiedText: wrongChar });
+      await new Promise(r => setTimeout(r, 50 + Math.random() * 100));
+      await cdp.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Backspace', code: 'Backspace', keyCode: 8, windowsVirtualKeyCode: 8 });
+      await cdp.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Backspace', code: 'Backspace', keyCode: 8, windowsVirtualKeyCode: 8 });
+      await new Promise(r => setTimeout(r, 30 + Math.random() * 70));
+    }
+
+    await new Promise(r => setTimeout(r, delay));
+  }
+}
+
+async function cmdHumanClick(selector) {
+  if (!selector) { console.error('Usage: webact humanclick <selector>'); process.exit(1); }
+
+  await withCDP(async (cdp) => {
+    const loc = await locateElement(cdp, selector);
+    await humanClick(cdp, loc.x, loc.y);
+    console.log(`Human-clicked ${loc.tag.toLowerCase()} "${loc.text}"`);
+    await new Promise(r => setTimeout(r, 150));
+    console.log(await getPageBrief(cdp));
+  });
+}
+
+async function cmdHumanType(selector, text) {
+  if (!selector || !text) { console.error('Usage: webact humantype <selector> <text>'); process.exit(1); }
+
+  await withCDP(async (cdp) => {
+    await cdp.send('Runtime.evaluate', {
+      expression: `(function() { const el = document.querySelector(${JSON.stringify(selector)}); if (!el) throw new Error('Element not found'); el.focus(); if (el.select) el.select(); })()`,
+    });
+    await humanTypeText(cdp, text);
+    console.log(`Human-typed "${text.substring(0, 50)}${text.length > 50 ? '...' : ''}" into ${selector}`);
+  });
 }
 
 async function cmdClick(selector) {
@@ -1620,6 +1745,8 @@ async function fetchInteractiveElements(cdp) {
 
   // Save ref map to session state
   const state = loadSessionState();
+  state.prevElements = state.currentElements || null;
+  state.currentElements = elements.map((el, i) => ({ ref: i + 1, ...el }));
   state.refMap = refMap;
   state.refMapUrl = currentUrl;
   state.refMapTimestamp = Date.now();
@@ -1632,12 +1759,59 @@ async function fetchInteractiveElements(cdp) {
   return { elements, refMap, output };
 }
 
-async function cmdAxtree(selector, interactiveOnly) {
+function diffElements(prev, curr) {
+  if (!prev) return null;
+  const prevMap = new Map(prev.map(e => [e.ref, e]));
+  const currMap = new Map(curr.map(e => [e.ref, e]));
+  const added = [], removed = [], changed = [];
+
+  for (const [ref, el] of currMap) {
+    const old = prevMap.get(ref);
+    if (!old) {
+      added.push(el);
+    } else if (old.role !== el.role || old.name !== el.name || old.value !== el.value) {
+      changed.push({ ref, from: old, to: el });
+    }
+  }
+  for (const [ref, el] of prevMap) {
+    if (!currMap.has(ref)) removed.push(el);
+  }
+
+  return { added, removed, changed };
+}
+
+async function cmdAxtree(selector, interactiveOnly, showDiff, maxTokens) {
   await withCDP(async (cdp) => {
     // Fast path: interactive-only without selector — uses cache + ref map
     if (interactiveOnly && !selector) {
       const data = await fetchInteractiveElements(cdp);
-      console.log(data.output || '(no interactive elements found)');
+      if (showDiff) {
+        const state = loadSessionState();
+        const diff = diffElements(state.prevElements, state.currentElements);
+        if (!diff) {
+          console.log('(no previous snapshot to diff against)');
+          console.log(data.output || '(no interactive elements found)');
+        } else if (diff.added.length === 0 && diff.removed.length === 0 && diff.changed.length === 0) {
+          console.log('(no changes since last snapshot)');
+        } else {
+          let out = '';
+          if (diff.added.length) out += 'ADDED:\n' + diff.added.map(e => `  + [${e.ref}] ${e.role} "${e.name}"`).join('\n') + '\n';
+          if (diff.removed.length) out += 'REMOVED:\n' + diff.removed.map(e => `  - [${e.ref}] ${e.role} "${e.name}"`).join('\n') + '\n';
+          if (diff.changed.length) out += 'CHANGED:\n' + diff.changed.map(c => `  ~ [${c.ref}] ${c.to.role} "${c.to.name}" (was: "${c.from.name}")`).join('\n') + '\n';
+          out += `(${diff.added.length} added, ${diff.removed.length} removed, ${diff.changed.length} changed)`;
+          console.log(out);
+        }
+        return;
+      }
+
+      let output = data.output || '(no interactive elements found)';
+      if (maxTokens > 0) {
+        const charBudget = maxTokens * 4;
+        if (output.length > charBudget) {
+          output = output.substring(0, charBudget) + '\n... (truncated to ~' + maxTokens + ' tokens)';
+        }
+      }
+      console.log(output);
       return;
     }
 
@@ -1845,6 +2019,66 @@ async function cmdObserve() {
       output += `[${ref}] ${cmd}  — ${desc}\n`;
     }
     console.log(output.trimEnd());
+  });
+}
+
+async function cmdFind(query) {
+  if (!query) { console.error('Usage: webact find <query>\nExample: webact find "login button"'); process.exit(1); }
+
+  await withCDP(async (cdp) => {
+    const data = await fetchInteractiveElements(cdp);
+    if (data.elements.length === 0) {
+      console.error('No interactive elements found. Navigate to a page first.');
+      process.exit(1);
+    }
+
+    const STOPWORDS = new Set(['the', 'a', 'an', 'to', 'for', 'of', 'in', 'on', 'is', 'it', 'and', 'or', 'this', 'that']);
+    function tokenize(str) {
+      return str.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(t => t.length > 1 && !STOPWORDS.has(t));
+    }
+
+    const queryTokens = new Set(tokenize(query));
+    if (queryTokens.size === 0) {
+      console.error('Query too vague. Use descriptive terms like "search input" or "submit button".');
+      process.exit(1);
+    }
+
+    const scored = [];
+    for (let i = 0; i < data.elements.length; i++) {
+      const el = data.elements[i];
+      const elText = `${el.role} ${el.name} ${el.value}`;
+      const elTokens = new Set(tokenize(elText));
+      if (elTokens.size === 0) continue;
+
+      let intersection = 0;
+      for (const t of queryTokens) {
+        if (elTokens.has(t)) intersection++;
+        else {
+          for (const et of elTokens) {
+            if (et.includes(t) || t.includes(et)) { intersection += 0.5; break; }
+          }
+        }
+      }
+      const union = new Set([...queryTokens, ...elTokens]).size;
+      const score = intersection / union;
+      if (score > 0) scored.push({ ref: i + 1, score, el });
+    }
+
+    scored.sort((a, b) => b.score - a.score);
+    const topK = scored.slice(0, 5);
+
+    if (topK.length === 0) {
+      console.error(`No elements match "${query}". Try: axtree -i to see available elements.`);
+      process.exit(1);
+    }
+
+    const best = topK[0];
+    const confidence = best.score >= 0.5 ? 'high' : best.score >= 0.25 ? 'medium' : 'low';
+    console.log(`Best: [${best.ref}] ${best.el.role} "${best.el.name}" (${confidence} confidence, score:${best.score.toFixed(2)})`);
+    if (topK.length > 1) {
+      const others = topK.slice(1).map(m => `  [${m.ref}] ${m.el.role} "${m.el.name}" (${m.score.toFixed(2)})`);
+      console.log('Also:\n' + others.join('\n'));
+    }
   });
 }
 
@@ -2110,6 +2344,23 @@ async function cmdConsole(action) {
   }
 }
 
+const ADBLOCK_PATTERNS = [
+  'google-analytics.com', 'googletagmanager.com', 'googletagservices.com',
+  'googlesyndication.com', 'googleadservices.com', 'doubleclick.net',
+  'facebook.com/tr', 'connect.facebook.net', 'fbevents.js',
+  'analytics.twitter.com', 'ads-twitter.com',
+  'segment.io', 'segment.com', 'mixpanel.com', 'amplitude.com',
+  'hotjar.com', 'fullstory.com', 'heapanalytics.com', 'mouseflow.com',
+  'crazyegg.com', 'newrelic.com', 'nr-data.net',
+  'adnxs.com', 'openx.net', 'pubmatic.com', 'rubiconproject.com',
+  'amazon-adsystem.com', 'criteo.com', 'criteo.net',
+  'taboola.com', 'outbrain.com', 'revcontent.com',
+  'marketo.com', 'marketo.net', 'pardot.com',
+  'cookielaw.org', 'cookiebot.com', 'onetrust.com', 'trustarc.com',
+  'scorecardresearch.com', 'quantserve.com', 'chartbeat.com',
+  'optimizely.com', 'demdex.net', 'addthis.com', 'sharethis.com',
+];
+
 async function cmdBlock(...patterns) {
   if (patterns.length === 0) {
     console.error('Usage: webact.js block <pattern> [pattern2...]\nPatterns: images, css, fonts, media, scripts, or URL substring\nUse "block off" to disable blocking.');
@@ -2122,6 +2373,25 @@ async function cmdBlock(...patterns) {
     delete state.blockPatterns;
     saveSessionState(state);
     console.log('Request blocking disabled.');
+    return;
+  }
+
+  // Handle --ads preset
+  if (patterns.includes('--ads') || patterns.includes('ads')) {
+    const otherPatterns = patterns.filter(p => p !== '--ads' && p !== 'ads');
+    const RESOURCE_TYPES = { 'images': 'Image', 'css': 'Stylesheet', 'fonts': 'Font', 'media': 'Media', 'scripts': 'Script' };
+    const allUrlPatterns = [...ADBLOCK_PATTERNS];
+    const resourceTypes = [];
+    for (const p of otherPatterns) {
+      if (RESOURCE_TYPES[p.toLowerCase()]) {
+        resourceTypes.push(RESOURCE_TYPES[p.toLowerCase()]);
+      } else {
+        allUrlPatterns.push(p);
+      }
+    }
+    state.blockPatterns = { resourceTypes, urlPatterns: allUrlPatterns };
+    saveSessionState(state);
+    console.log(`Blocking: ads/trackers (${ADBLOCK_PATTERNS.length} patterns)${otherPatterns.length ? ' + ' + otherPatterns.join(', ') : ''}. Takes effect on next page load.`);
     return;
   }
 
@@ -2331,6 +2601,45 @@ async function cmdMinimize() {
   console.log(`Minimized ${browserName}.`);
 }
 
+async function cmdLock(ttlSeconds) {
+  const ttl = parseInt(ttlSeconds, 10) || 300;
+  const state = loadSessionState();
+  if (!state.activeTabId) { console.error('No active tab'); process.exit(1); }
+
+  const lock = checkTabLock(state.activeTabId);
+  if (lock && lock.sessionId !== currentSessionId) {
+    console.error(`Tab already locked by session ${lock.sessionId} (expires in ${Math.round((lock.expires - Date.now()) / 1000)}s)`);
+    process.exit(1);
+  }
+
+  const locks = loadTabLocks();
+  locks[state.activeTabId] = {
+    sessionId: currentSessionId,
+    expires: Date.now() + ttl * 1000,
+  };
+  saveTabLocks(locks);
+  console.log(`Tab ${state.activeTabId} locked for ${ttl}s by session ${currentSessionId}`);
+}
+
+async function cmdUnlock() {
+  const state = loadSessionState();
+  if (!state.activeTabId) { console.error('No active tab'); process.exit(1); }
+
+  const locks = loadTabLocks();
+  const lock = locks[state.activeTabId];
+  if (!lock) {
+    console.log('Tab is not locked.');
+    return;
+  }
+  if (lock.sessionId !== currentSessionId) {
+    console.error(`Tab is locked by session ${lock.sessionId}, not yours.`);
+    process.exit(1);
+  }
+  delete locks[state.activeTabId];
+  saveTabLocks(locks);
+  console.log(`Tab ${state.activeTabId} unlocked.`);
+}
+
 // --- Command dispatch ---
 
 async function dispatch(command, args) {
@@ -2340,9 +2649,11 @@ async function dispatch(command, args) {
     case 'navigate': await cmdNavigate(args.join(' ')); break;
     case 'dom': {
       const full = args.includes('--full');
-      const selectorArg = args.filter(a => a !== '--full').join(' ') || null;
+      const tokensArg = args.find(a => a.startsWith('--tokens='));
+      const maxTokens = tokensArg ? parseInt(tokensArg.split('=')[1], 10) : 0;
+      const selectorArg = args.filter(a => a !== '--full' && !a.startsWith('--tokens=')).join(' ') || null;
       const selector = selectorArg ? resolveSelector(selectorArg) : null;
-      await cmdDom(selector, full);
+      await cmdDom(selector, full, maxTokens);
       break;
     }
     case 'screenshot': await cmdScreenshot(); break;
@@ -2450,8 +2761,11 @@ async function dispatch(command, args) {
     case 'close': await cmdClose(); break;
     case 'axtree': {
       const interactive = args.includes('--interactive') || args.includes('-i');
-      const selector = args.filter(a => a !== '--interactive' && a !== '-i').join(' ') || null;
-      await cmdAxtree(selector, interactive);
+      const diff = args.includes('--diff');
+      const tokensArg = args.find(a => a.startsWith('--tokens='));
+      const maxTokens = tokensArg ? parseInt(tokensArg.split('=')[1], 10) : 0;
+      const selector = args.filter(a => !['--interactive', '-i', '--diff'].includes(a) && !a.startsWith('--tokens=')).join(' ') || null;
+      await cmdAxtree(selector, interactive, diff, maxTokens);
       break;
     }
     case 'cookies': await cmdCookies(args[0], ...args.slice(1)); break;
@@ -2486,6 +2800,7 @@ async function dispatch(command, args) {
     }
     case 'clear': await cmdClear(resolveSelector(args.join(' '))); break;
     case 'observe': await cmdObserve(); break;
+    case 'find': await cmdFind(args.join(' ')); break;
     case 'pdf': await cmdPdf(args[0]); break;
     case 'console': await cmdConsole(args[0]); break;
     case 'block': await cmdBlock(...args); break;
@@ -2495,6 +2810,38 @@ async function dispatch(command, args) {
     case 'download': await cmdDownload(args[0], ...args.slice(1)); break;
     case 'activate': await cmdActivate(); break;
     case 'minimize': await cmdMinimize(); break;
+    case 'humanclick': {
+      const coords = parseCoordinates(args);
+      if (coords) {
+        await withCDP(async (cdp) => {
+          await humanClick(cdp, coords.x, coords.y);
+          console.log(`Human-clicked at (${coords.x}, ${coords.y})`);
+          await new Promise(r => setTimeout(r, 150));
+          console.log(await getPageBrief(cdp));
+        });
+      } else if (args[0] === '--text') {
+        const text = args.slice(1).join(' ');
+        if (!text) { console.error('Usage: webact humanclick --text <text>'); process.exit(1); }
+        await withCDP(async (cdp) => {
+          const loc = await locateElementByText(cdp, text);
+          await humanClick(cdp, loc.x, loc.y);
+          console.log(`Human-clicked ${loc.tag.toLowerCase()} "${loc.text}" (text match)`);
+          await new Promise(r => setTimeout(r, 150));
+          console.log(await getPageBrief(cdp));
+        });
+      } else {
+        await cmdHumanClick(resolveSelector(args.join(' ')));
+      }
+      break;
+    }
+    case 'humantype': {
+      const selector = resolveSelector(args[0]);
+      const text = args.slice(1).join(' ');
+      await cmdHumanType(selector, text);
+      break;
+    }
+    case 'lock': await cmdLock(args[0]); break;
+    case 'unlock': await cmdUnlock(); break;
     default:
       console.error(`Unknown command: ${command}`);
       process.exit(1);
@@ -2523,10 +2870,13 @@ Commands:
   back                Go back in history
   forward             Go forward in history
   reload              Reload the current page
-  dom [selector]      Get compact DOM (--full for no truncation)
+  dom [selector]      Get compact DOM (--full for no truncation, --tokens=N for budget)
   axtree [selector]   Get accessibility tree (semantic roles + names)
   axtree -i           Interactive elements with ref numbers (enables ref-based targeting)
+  axtree -i --diff    Show only changes since last snapshot
+  axtree -i --tokens=N  Truncate output to ~N tokens
   observe             Show interactive elements as ready-to-use commands
+  find <query>        Find element by description (e.g. find "login button")
   screenshot          Capture screenshot
   pdf [path]          Save page as PDF
   click <sel|x,y|--text> Click element, coordinates, or text match
@@ -2551,6 +2901,7 @@ Commands:
   cookies [get|set|clear|delete]  Manage browser cookies
   console [show|errors|listen]    View console output or JS errors
   block <pattern>     Block requests: images, css, fonts, media, scripts, or URL
+  block --ads         Block ads, analytics, and tracking (50+ patterns)
   block off           Disable request blocking
   viewport <w> <h>    Set viewport size (or preset: mobile, tablet, desktop, iphone, ipad)
   frames              List all frames/iframes on the page
@@ -2560,8 +2911,12 @@ Commands:
   tab <id>            Switch to a session-owned tab
   newtab [url]        Open a new tab in this session
   close               Close current tab
+  lock [seconds]      Lock active tab for exclusive access (default 300s)
+  unlock              Release tab lock
   activate            Bring browser window to front (macOS)
-  minimize            Minimize browser window (macOS)`);
+  minimize            Minimize browser window (macOS)
+  humanclick <sel|x,y|--text>  Click with human-like mouse movement (anti-bot)
+  humantype <sel> <text>       Type with variable delays and occasional typos`);
     process.exit(0);
   }
 
