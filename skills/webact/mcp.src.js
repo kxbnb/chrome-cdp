@@ -910,7 +910,7 @@ async function handleRequest(msg) {
           jsonrpc: '2.0',
           id,
           result: {
-            protocolVersion: '2024-11-05',
+            protocolVersion: '2025-11-25',
             capabilities: { tools: {} },
             serverInfo: { name: 'webact', version: VERSION },
           },
@@ -934,14 +934,25 @@ async function handleRequest(msg) {
         try {
           const { command, args } = mapToolToArgs(toolName, toolParams);
 
-          // Ensure session is active for non-launch/connect commands
-          if (command !== 'launch' && command !== 'connect') {
-            ensureSession();
-          }
-
           // Set CDP_PORT from env if available
           if (process.env.CDP_PORT) {
             CDP_PORT = parseInt(process.env.CDP_PORT, 10);
+          }
+
+          // Auto-launch: if no session or Chrome not reachable, launch automatically
+          if (command !== 'launch' && command !== 'connect') {
+            // Try to restore existing session (don't throw if missing)
+            try { ensureSession(); } catch {}
+
+            let needsLaunch = !currentSessionId;
+            if (!needsLaunch) {
+              try { await getDebugTabs(); } catch { needsLaunch = true; }
+            }
+            if (needsLaunch) {
+              process.stderr.write(`Auto-launching browser for ${command}...\n`);
+              await dispatch('launch', []);
+              process.stderr.write(`Auto-launch complete.\n`);
+            }
           }
 
           const { captured, restore } = captureOutput();

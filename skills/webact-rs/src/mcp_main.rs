@@ -61,7 +61,7 @@ async fn run_mcp_server() -> Result<()> {
                     "jsonrpc": "2.0",
                     "id": id,
                     "result": {
-                        "protocolVersion": "2024-11-05",
+                        "protocolVersion": "2025-11-25",
                         "capabilities": {
                             "tools": {}
                         },
@@ -173,6 +173,22 @@ async fn handle_tool_call(
     // Auto-discover session for most commands
     if command != "launch" && command != "connect" && ctx.current_session_id.is_none() {
         let _ = ctx.auto_discover_last_session();
+    }
+
+    // Auto-launch: if no session or Chrome not reachable, launch automatically
+    if command != "launch" && command != "connect" {
+        let needs_launch = if ctx.current_session_id.is_none() {
+            true
+        } else {
+            get_debug_tabs(ctx).await.is_err()
+        };
+        if needs_launch {
+            eprintln!("Auto-launching browser for {command}...");
+            ctx.output.clear();
+            commands::dispatch(ctx, "launch", &[]).await?;
+            let launch_output = ctx.drain_output();
+            eprintln!("Auto-launch complete: {}", launch_output.trim());
+        }
     }
 
     // Map tool arguments to CLI args vector
