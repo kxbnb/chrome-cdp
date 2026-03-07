@@ -3,6 +3,14 @@ name = "webact-rs"
 version = "0.1.0"
 edition = "2024"
 
+[[bin]]
+name = "webact-rs"
+path = "src/main.rs"
+
+[[bin]]
+name = "webact-mcp"
+path = "src/mcp_main.rs"
+
 [dependencies]
 anyhow = "1.0"
 base64 = "0.22"

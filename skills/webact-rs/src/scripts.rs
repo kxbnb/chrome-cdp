@@ -1,4 +1,4 @@
-pub(crate) const ADBLOCK_PATTERNS: &[&str] = &[
+pub const ADBLOCK_PATTERNS: &[&str] = &[
     "google-analytics.com",
     "googletagmanager.com",
     "googletagservices.com",
@@ -47,7 +47,7 @@ pub(crate) const ADBLOCK_PATTERNS: &[&str] = &[
     "sharethis.com",
 ];
 
-pub(crate) const PAGE_BRIEF_SCRIPT: &str = r#"(function() {
+pub const PAGE_BRIEF_SCRIPT: &str = r#"(function() {
   function qsa(sel) {
     const results = [...document.querySelectorAll(sel)];
     (function walk(root) {
@@ -105,7 +105,7 @@ pub(crate) const PAGE_BRIEF_SCRIPT: &str = r#"(function() {
   return r;
 })()"#;
 
-pub(crate) const SELECTOR_GEN_SCRIPT: &str = r#"if (!window.__webactGenSelector) {
+pub const SELECTOR_GEN_SCRIPT: &str = r#"if (!window.__webactGenSelector) {
   window.__webactGenSelector = function(el) {
     if (el.id) {
       try {
@@ -139,7 +139,7 @@ pub(crate) const SELECTOR_GEN_SCRIPT: &str = r#"if (!window.__webactGenSelector)
   };
 }"#;
 
-pub(crate) const DOM_EXTRACT_TEMPLATE: &str = r#"
+pub const DOM_EXTRACT_TEMPLATE: &str = r#"
 (function() {
   const SKIP_TAGS = new Set(['SCRIPT','STYLE','SVG','NOSCRIPT','LINK','META','HEAD']);
   const INTERACTIVE = new Set(['A','BUTTON','INPUT','TEXTAREA','SELECT','DETAILS','SUMMARY']);
@@ -207,7 +207,7 @@ pub(crate) const DOM_EXTRACT_TEMPLATE: &str = r#"
 })()
 "#;
 
-pub(crate) const AXTREE_INTERACTIVE_SCRIPT: &str = r#"
+pub const AXTREE_INTERACTIVE_SCRIPT: &str = r#"
 (function() {
   __WEBACT_SELECTOR_GEN__
 

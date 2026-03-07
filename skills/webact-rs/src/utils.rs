@@ -1,6 +1,6 @@
-use super::*;
+use crate::*;
 
-pub(crate) fn parse_coordinates(args: &[String]) -> Option<(f64, f64)> {
+pub fn parse_coordinates(args: &[String]) -> Option<(f64, f64)> {
     if args.len() == 1 {
         let arg = args[0].trim();
         if let Some((x, y)) = arg.split_once(',') {
@@ -17,7 +17,7 @@ pub(crate) fn parse_coordinates(args: &[String]) -> Option<(f64, f64)> {
     None
 }
 
-pub(crate) fn console_arg_to_text(arg: &Value) -> String {
+pub fn console_arg_to_text(arg: &Value) -> String {
     arg.get("value")
         .and_then(|v| match v {
             Value::String(s) => Some(s.clone()),
@@ -34,7 +34,7 @@ pub(crate) fn console_arg_to_text(arg: &Value) -> String {
         .unwrap_or_default()
 }
 
-pub(crate) fn map_resource_type(pattern: &str) -> Option<&'static str> {
+pub fn map_resource_type(pattern: &str) -> Option<&'static str> {
     match pattern.to_lowercase().as_str() {
         "images" => Some("Image"),
         "css" => Some("Stylesheet"),
@@ -45,7 +45,7 @@ pub(crate) fn map_resource_type(pattern: &str) -> Option<&'static str> {
     }
 }
 
-pub(crate) fn resource_type_url_patterns(resource_type: &str) -> Vec<String> {
+pub fn resource_type_url_patterns(resource_type: &str) -> Vec<String> {
     match resource_type {
         "Image" => vec![
             "*.png".to_string(),
@@ -74,7 +74,7 @@ pub(crate) fn resource_type_url_patterns(resource_type: &str) -> Vec<String> {
     }
 }
 
-pub(crate) fn print_frame_tree(buf: &mut String, node: &Value, depth: usize) {
+pub fn print_frame_tree(buf: &mut String, node: &Value, depth: usize) {
     if node.is_null() {
         return;
     }
@@ -98,7 +98,7 @@ pub(crate) fn print_frame_tree(buf: &mut String, node: &Value, depth: usize) {
     }
 }
 
-pub(crate) fn find_frame_in_tree(node: &Value, id_or_name: &str) -> Option<(String, String)> {
+pub fn find_frame_in_tree(node: &Value, id_or_name: &str) -> Option<(String, String)> {
     if node.is_null() {
         return None;
     }
@@ -122,7 +122,7 @@ pub(crate) fn find_frame_in_tree(node: &Value, id_or_name: &str) -> Option<(Stri
     None
 }
 
-pub(crate) fn find_frame_by_url(node: &Value, target_url: &str) -> Option<(String, String)> {
+pub fn find_frame_by_url(node: &Value, target_url: &str) -> Option<(String, String)> {
     if node.is_null() {
         return None;
     }
@@ -145,11 +145,11 @@ pub(crate) fn find_frame_by_url(node: &Value, target_url: &str) -> Option<(Strin
     None
 }
 
-pub(crate) fn epoch_to_date(epoch_seconds: i64) -> String {
+pub fn epoch_to_date(epoch_seconds: i64) -> String {
     epoch_seconds.to_string()
 }
 
-pub(crate) fn human_size(size: u64) -> String {
+pub fn human_size(size: u64) -> String {
     if size > 1_048_576 {
         format!("{:.1}MB", size as f64 / 1_048_576.0)
     } else if size > 1024 {
@@ -159,7 +159,7 @@ pub(crate) fn human_size(size: u64) -> String {
     }
 }
 
-pub(crate) fn activate_browser(browser_name: &str) -> Result<()> {
+pub fn activate_browser(browser_name: &str) -> Result<()> {
     if cfg!(target_os = "macos") {
         let script = format!(
             "tell application \"{}\" to activate\ntell application \"{}\" to set miniaturized of window 1 to false",
@@ -177,7 +177,7 @@ pub(crate) fn activate_browser(browser_name: &str) -> Result<()> {
     Ok(())
 }
 
-pub(crate) fn minimize_browser(browser_name: &str) -> Result<()> {
+pub fn minimize_browser(browser_name: &str) -> Result<()> {
     if cfg!(target_os = "macos") {
         let script = format!(
             "tell application \"{}\" to set miniaturized of every window to true",
@@ -195,7 +195,7 @@ pub(crate) fn minimize_browser(browser_name: &str) -> Result<()> {
     Ok(())
 }
 
-pub(crate) async fn human_click(cdp: &mut CdpClient, x: f64, y: f64) -> Result<()> {
+pub async fn human_click(cdp: &mut CdpClient, x: f64, y: f64) -> Result<()> {
     let start_x = x + (rand::random::<f64>() - 0.5) * 200.0 + 50.0;
     let start_y = y + (rand::random::<f64>() - 0.5) * 200.0 + 50.0;
     cdp.send(
@@ -227,7 +227,7 @@ pub(crate) async fn human_click(cdp: &mut CdpClient, x: f64, y: f64) -> Result<(
     Ok(())
 }
 
-pub(crate) async fn human_mouse_move(
+pub async fn human_mouse_move(
     cdp: &mut CdpClient,
     from_x: f64,
     from_y: f64,
@@ -269,7 +269,7 @@ pub(crate) async fn human_mouse_move(
     Ok(())
 }
 
-pub(crate) async fn human_type_text(cdp: &mut CdpClient, text: &str, fast: bool) -> Result<()> {
+pub async fn human_type_text(cdp: &mut CdpClient, text: &str, fast: bool) -> Result<()> {
     let base_delay = if fast { 40.0 } else { 80.0 };
     let chars = text.chars().collect::<Vec<_>>();
     for (i, ch) in chars.iter().enumerate() {
@@ -339,7 +339,7 @@ pub(crate) async fn human_type_text(cdp: &mut CdpClient, text: &str, fast: bool)
     Ok(())
 }
 
-pub(crate) fn build_dom_extract_script(selector: Option<&str>) -> Result<String> {
+pub fn build_dom_extract_script(selector: Option<&str>) -> Result<String> {
     let root = match selector {
         Some(sel) => format!("document.querySelector({})", serde_json::to_string(sel)?),
         None => "document.body".to_string(),
@@ -354,7 +354,7 @@ pub(crate) fn build_dom_extract_script(selector: Option<&str>) -> Result<String>
         .replace("__WEBACT_SELECTOR_SUFFIX__", &selector_suffix))
 }
 
-pub(crate) fn parse_key_combo(combo: &str) -> (KeyModifiers, String) {
+pub fn parse_key_combo(combo: &str) -> (KeyModifiers, String) {
     let mut modifiers = KeyModifiers {
         ctrl: false,
         alt: false,
@@ -376,7 +376,7 @@ pub(crate) fn parse_key_combo(combo: &str) -> (KeyModifiers, String) {
     (modifiers, key)
 }
 
-pub(crate) fn key_mapping(input: &str) -> KeyMapping {
+pub fn key_mapping(input: &str) -> KeyMapping {
     let key = input.to_string();
     match input.to_lowercase().as_str() {
         "enter" => KeyMapping {
@@ -469,7 +469,7 @@ pub(crate) fn key_mapping(input: &str) -> KeyMapping {
     }
 }
 
-pub(crate) fn find_free_port() -> Result<u16> {
+pub fn find_free_port() -> Result<u16> {
     let listener =
         TcpListener::bind((DEFAULT_CDP_HOST, 0)).context("failed to allocate free port")?;
     let port = listener
@@ -480,7 +480,7 @@ pub(crate) fn find_free_port() -> Result<u16> {
     Ok(port)
 }
 
-pub(crate) fn find_browser() -> Option<BrowserCandidate> {
+pub fn find_browser() -> Option<BrowserCandidate> {
     if let Ok(chrome_path) = env::var("CHROME_PATH") {
         if Path::new(&chrome_path).exists() {
             let name = Path::new(&chrome_path)
@@ -607,7 +607,7 @@ pub(crate) fn find_browser() -> Option<BrowserCandidate> {
     None
 }
 
-pub(crate) fn which_bin(bin: &str) -> Option<String> {
+pub fn which_bin(bin: &str) -> Option<String> {
     let output = Command::new("which").arg(bin).output().ok()?;
     if !output.status.success() {
         return None;
@@ -617,7 +617,7 @@ pub(crate) fn which_bin(bin: &str) -> Option<String> {
     if path.is_empty() { None } else { Some(path) }
 }
 
-pub(crate) fn truncate(input: &str, max_chars: usize) -> String {
+pub fn truncate(input: &str, max_chars: usize) -> String {
     if input.chars().count() <= max_chars {
         return input.to_string();
     }
@@ -625,7 +625,7 @@ pub(crate) fn truncate(input: &str, max_chars: usize) -> String {
     format!("{clipped}...")
 }
 
-pub(crate) fn json_value_to_arg(v: &Value) -> String {
+pub fn json_value_to_arg(v: &Value) -> String {
     match v {
         Value::String(s) => s.clone(),
         Value::Number(n) => n.to_string(),
@@ -635,14 +635,14 @@ pub(crate) fn json_value_to_arg(v: &Value) -> String {
     }
 }
 
-pub(crate) fn now_epoch_ms() -> i64 {
+pub fn now_epoch_ms() -> i64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_else(|_| Duration::from_secs(0))
         .as_millis() as i64
 }
 
-pub(crate) fn new_session_id() -> String {
+pub fn new_session_id() -> String {
     let mut bytes = [0u8; 4];
     rand::rng().fill_bytes(&mut bytes);
     bytes.iter().map(|b| format!("{b:02x}")).collect::<String>()

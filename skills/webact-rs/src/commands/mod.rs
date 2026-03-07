@@ -1,4 +1,4 @@
-use super::*;
+use crate::*;
 
 mod core;
 mod data;
@@ -10,7 +10,7 @@ use data::*;
 use interaction::*;
 use session::*;
 
-pub(crate) async fn dispatch(ctx: &mut AppContext, command: &str, args: &[String]) -> Result<()> {
+pub async fn dispatch(ctx: &mut AppContext, command: &str, args: &[String]) -> Result<()> {
     match command {
         "launch" => cmd_launch(ctx).await,
         "connect" => cmd_connect(ctx).await,
