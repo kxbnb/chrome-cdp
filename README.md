@@ -2,7 +2,7 @@
 
 A highly token efficient agent skill that lets you control any Chromium-based browser via the Chrome DevTools Protocol. Works with Claude Code, Cursor, Codex, Windsurf, Cline, Copilot, OpenCode, Goose, and any tool supporting the [Agent Skills](https://agentskills.io) spec. Give the agent a goal - "check my inbox", "top stories on Hacker News", "search for flights" - and it drives the browser to get it done.
 
-No Playwright, no MCP, no browser automation frameworks. Raw CDP over WebSocket.
+No Playwright, no browser automation frameworks. Raw CDP over WebSocket.
 
 ## Install
 
@@ -52,6 +52,20 @@ The agent follows a **perceive-act loop**:
 5. **Repeat** - until the goal is done
 
 DOM is read first for token efficiency. Screenshots are a fallback for visual-heavy pages.
+
+## Rust port (experimental)
+
+An incremental side-by-side Rust port lives in [`skills/webact-rs`](skills/webact-rs).
+
+- JS remains the primary implementation in `skills/webact/webact.src.js`
+- Rust now implements the full command surface for side-by-side parity testing (see tracker for known behavioral differences)
+- Command parity tracker: [`skills/webact-rs/PORTING.md`](skills/webact-rs/PORTING.md)
+
+Current code layout after monolith split:
+- JS runtime helpers: `skills/webact/lib/browser.js`, `skills/webact/lib/state.js`, `skills/webact/lib/cdp.js`
+- JS command entrypoint: `skills/webact/webact.src.js`
+- Rust orchestration/runtime: `skills/webact-rs/src/main.rs`
+- Rust command handlers: `skills/webact-rs/src/commands.rs`
 
 ## Sessions
 
@@ -197,10 +211,57 @@ For interactive elements, both tools offer a flat list with refs. webact's `axtr
 
 **When to use Playwright-based tools:** You need headless Chromium, cloud browser infra, device emulation, network mocking, cross-browser support, or iOS simulator. You're OK with the install size and Playwright dependency.
 
+## MCP Server
+
+webact also ships as an MCP server for Claude Desktop, ChatGPT Desktop, Cursor, and other MCP-compatible clients. Each webact command is exposed as an individual tool with full JSON schema.
+
+### Install (Rust binary — no Node.js required)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/kilospark/webact/main/install.sh | sh
+```
+
+Then add to your MCP client config:
+
+```json
+{
+  "mcpServers": {
+    "webact": {
+      "command": "webact-mcp"
+    }
+  }
+}
+```
+
+### Install (Node.js)
+
+```json
+{
+  "mcpServers": {
+    "webact": {
+      "command": "npx",
+      "args": ["@kilospark/webact-mcp"]
+    }
+  }
+}
+```
+
+Or if already installed globally (`npm install -g @kilospark/webact`):
+
+```json
+{
+  "mcpServers": {
+    "webact": {
+      "command": "webact-mcp"
+    }
+  }
+}
+```
+
 ## Requirements
 
 - Any Chromium-based browser: Google Chrome, Microsoft Edge, Brave, Arc, Vivaldi, Opera, or Chromium
-- Node.js
+- Node.js (for agent skill install) or the Rust binary (no runtime dependencies)
 
 Auto-detected on macOS, Linux, Windows, and WSL (finds the Windows host browser automatically). Set `CHROME_PATH` to override.
 
