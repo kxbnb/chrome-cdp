@@ -51,6 +51,88 @@ fi
 chmod +x "${INSTALL_DIR}/${BINARY}"
 
 echo "Installed ${BINARY} to ${INSTALL_DIR}/${BINARY}"
+
+# --- Configure MCP clients ---
+
+BINARY_PATH="${INSTALL_DIR}/${BINARY}"
+CONFIGURED=""
+
+# Add webact to an MCP config file
+# Usage: add_mcp_config <config_file> <client_name>
+add_mcp_config() {
+  config_file="$1"
+  client_name="$2"
+
+  if [ ! -f "$config_file" ]; then
+    return
+  fi
+
+  # Check if webact is already configured
+  if grep -q '"webact"' "$config_file" 2>/dev/null; then
+    echo "  $client_name: already configured"
+    CONFIGURED="${CONFIGURED}${client_name}, "
+    return
+  fi
+
+  # Read existing content
+  content="$(cat "$config_file")"
+
+  # Escape path for sed (handle / and &)
+  escaped_path="$(echo "$BINARY_PATH" | sed 's/[\/&]/\\&/g')"
+
+  # Check if mcpServers key exists
+  if echo "$content" | grep -q '"mcpServers"'; then
+    # Add webact entry to existing mcpServers object
+    updated="$(echo "$content" | sed 's/"mcpServers"[[:space:]]*:[[:space:]]*{/"mcpServers": { "webact": { "command": "'"$escaped_path"'" },/')"
+  else
+    # Add mcpServers key to the top-level object
+    updated="$(echo "$content" | sed 's/^{/{ "mcpServers": { "webact": { "command": "'"$escaped_path"'" } },/')"
+  fi
+
+  echo "$updated" > "$config_file"
+  echo "  $client_name: configured"
+  CONFIGURED="${CONFIGURED}${client_name}, "
+}
+
 echo ""
-echo "Add to your MCP client config:"
-echo '  { "command": "webact-mcp" }'
+echo "Configuring MCP clients..."
+
+# macOS config paths
+if [ "$PLATFORM" = "darwin" ]; then
+  APP_SUPPORT="$HOME/Library/Application Support"
+
+  add_mcp_config "$APP_SUPPORT/Claude/claude_desktop_config.json" "Claude Desktop"
+  add_mcp_config "$APP_SUPPORT/ChatGPT/mcp.json" "ChatGPT Desktop"
+
+  # Cursor (macOS)
+  add_mcp_config "$HOME/.cursor/mcp.json" "Cursor"
+
+  # Windsurf (macOS)
+  add_mcp_config "$HOME/.codeium/windsurf/mcp_config.json" "Windsurf"
+fi
+
+# Linux config paths
+if [ "$PLATFORM" = "linux" ]; then
+  XDG_CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}"
+
+  add_mcp_config "$XDG_CONFIG/Claude/claude_desktop_config.json" "Claude Desktop"
+  add_mcp_config "$XDG_CONFIG/chatgpt/mcp.json" "ChatGPT Desktop"
+
+  # Cursor (Linux)
+  add_mcp_config "$HOME/.cursor/mcp.json" "Cursor"
+
+  # Windsurf (Linux)
+  add_mcp_config "$HOME/.codeium/windsurf/mcp_config.json" "Windsurf"
+fi
+
+# Cross-platform
+add_mcp_config "$HOME/.config/codex/mcp.json" "Codex"
+
+if [ -z "$CONFIGURED" ]; then
+  echo "  No MCP clients detected. Add manually to your client config:"
+  echo ""
+  echo '  { "mcpServers": { "webact": { "command": "'"$BINARY_PATH"'" } } }'
+else
+  echo ""
+  echo "Done! Restart your MCP client to start using webact."
+fi
