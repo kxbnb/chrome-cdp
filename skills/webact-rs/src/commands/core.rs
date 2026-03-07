@@ -1,0 +1,652 @@
+use super::*;
+
+pub(super) async fn cmd_launch(ctx: &mut AppContext) -> Result<()> {
+    let user_data_dir = ctx.chrome_profile_dir();
+    let port_file = ctx.chrome_port_file();
+
+    if let Ok(saved) = fs::read_to_string(&port_file) {
+        if let Ok(saved_port) = saved.trim().parse::<u16>() {
+            ctx.cdp_port = saved_port;
+            if get_debug_tabs(ctx).await.is_ok() {
+                ctx.launch_browser_name = find_browser().map(|b| b.name);
+                println!("Browser already running.");
+                return cmd_connect(ctx).await;
+            }
+        }
+        let _ = fs::remove_file(&port_file);
+    }
+
+    if let Some(port) = env::var("CDP_PORT")
+        .ok()
+        .and_then(|v| v.parse::<u16>().ok())
+    {
+        ctx.cdp_port = port;
+    } else {
+        ctx.cdp_port = find_free_port()?;
+    }
+
+    let browser = find_browser().ok_or_else(|| {
+        anyhow!(
+            "No Chromium-based browser found. Install Chrome/Edge/Brave/Chromium or set CHROME_PATH."
+        )
+    })?;
+    ctx.launch_browser_name = Some(browser.name.clone());
+
+    fs::create_dir_all(&user_data_dir)
+        .with_context(|| format!("failed creating {}", user_data_dir.display()))?;
+
+    let mut command = Command::new(&browser.path);
+    command
+        .arg(format!("--remote-debugging-port={}", ctx.cdp_port))
+        .arg(format!(
+            "--user-data-dir={}",
+            user_data_dir.to_string_lossy()
+        ))
+        .arg("--no-first-run")
+        .arg("--no-default-browser-check")
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        command.process_group(0);
+    }
+
+    let _child = command
+        .spawn()
+        .with_context(|| format!("failed launching browser at {}", browser.path))?;
+
+    for _ in 0..30 {
+        sleep(Duration::from_millis(500)).await;
+        if get_debug_tabs(ctx).await.is_ok() {
+            fs::write(&port_file, ctx.cdp_port.to_string())
+                .with_context(|| format!("failed writing {}", port_file.display()))?;
+            println!("{} launched successfully.", browser.name);
+            return cmd_connect(ctx).await;
+        }
+    }
+
+    bail!(
+        "{} launched but debug port not responding after 15s.",
+        browser.name
+    )
+}
+
+pub(super) async fn cmd_connect(ctx: &mut AppContext) -> Result<()> {
+    let session_id = new_session_id();
+    ctx.set_current_session(session_id.clone());
+
+    let new_tab = create_new_tab(ctx, None).await?;
+
+    let state = SessionState {
+        session_id: session_id.clone(),
+        active_tab_id: Some(new_tab.id.clone()),
+        tabs: vec![new_tab.id],
+        port: Some(ctx.cdp_port),
+        host: Some(ctx.cdp_host.clone()),
+        browser_name: ctx.launch_browser_name.clone(),
+        ..SessionState::default()
+    };
+    ctx.save_session_state(&state)?;
+    fs::write(ctx.last_session_file(), &session_id)
+        .context("failed writing last session pointer")?;
+
+    println!("Session: {session_id}");
+    println!("Command file: {}", ctx.command_file(&session_id).display());
+    Ok(())
+}
+
+pub(super) async fn cmd_navigate(ctx: &mut AppContext, url: &str) -> Result<()> {
+    let target_url = if url.starts_with("http://") || url.starts_with("https://") {
+        url.to_string()
+    } else {
+        format!("https://{url}")
+    };
+
+    // New page invalidates ref map.
+    let mut state = ctx.load_session_state()?;
+    state.ref_map = None;
+    state.ref_map_url = None;
+    state.ref_map_timestamp = None;
+    ctx.save_session_state(&state)?;
+
+    let mut cdp = open_cdp(ctx).await?;
+    prepare_cdp(ctx, &mut cdp).await?;
+    cdp.send("Page.enable", json!({})).await?;
+    cdp.send("Page.navigate", json!({ "url": target_url }))
+        .await?;
+    wait_for_ready_state_complete(&mut cdp, Duration::from_secs(15)).await?;
+    println!("{}", get_page_brief(&mut cdp).await?);
+    cdp.close().await;
+    Ok(())
+}
+
+pub(super) async fn cmd_dom(
+    ctx: &mut AppContext,
+    selector: Option<&str>,
+    max_tokens: usize,
+) -> Result<()> {
+    let script = build_dom_extract_script(selector)?;
+    let mut cdp = open_cdp(ctx).await?;
+    prepare_cdp(ctx, &mut cdp).await?;
+    let context_id = get_frame_context_id(ctx, &mut cdp).await?;
+    let result = runtime_evaluate_with_context(&mut cdp, &script, true, false, context_id).await?;
+    let mut output = result
+        .pointer("/result/value")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string();
+
+    if max_tokens > 0 {
+        let char_budget = max_tokens.saturating_mul(4);
+        if output.len() > char_budget {
+            let boundary = output.floor_char_boundary(char_budget);
+            output = format!(
+                "{}\n... (truncated to ~{} tokens)",
+                &output[..boundary],
+                max_tokens
+            );
+        }
+    }
+
+    println!("{output}");
+    cdp.close().await;
+    Ok(())
+}
+
+pub(super) async fn cmd_axtree_interactive(
+    ctx: &mut AppContext,
+    max_tokens: usize,
+    show_diff: bool,
+) -> Result<()> {
+    let mut cdp = open_cdp(ctx).await?;
+    prepare_cdp(ctx, &mut cdp).await?;
+
+    let data = fetch_interactive_elements(ctx, &mut cdp).await?;
+    if show_diff {
+        let state = ctx.load_session_state()?;
+        if let (Some(prev), Some(curr)) = (state.prev_elements, state.current_elements) {
+            let diff = diff_elements(&prev, &curr);
+            if diff.0.is_empty() && diff.1.is_empty() && diff.2.is_empty() {
+                println!("(no changes since last snapshot)");
+            } else {
+                let mut out = String::new();
+                if !diff.0.is_empty() {
+                    out.push_str("ADDED:\n");
+                    for e in &diff.0 {
+                        out.push_str(&format!("  + [{}] {} \"{}\"\n", e.ref_id, e.role, e.name));
+                    }
+                }
+                if !diff.1.is_empty() {
+                    out.push_str("REMOVED:\n");
+                    for e in &diff.1 {
+                        out.push_str(&format!("  - [{}] {} \"{}\"\n", e.ref_id, e.role, e.name));
+                    }
+                }
+                if !diff.2.is_empty() {
+                    out.push_str("CHANGED:\n");
+                    for (from, to) in &diff.2 {
+                        out.push_str(&format!(
+                            "  ~ [{}] {} \"{}\" (was: \"{}\")\n",
+                            to.ref_id, to.role, to.name, from.name
+                        ));
+                    }
+                }
+                out.push_str(&format!(
+                    "({} added, {} removed, {} changed)",
+                    diff.0.len(),
+                    diff.1.len(),
+                    diff.2.len()
+                ));
+                println!("{}", out.trim_end());
+            }
+        } else {
+            println!("(no previous snapshot to diff against)");
+            println!("{}", data.output);
+        }
+        cdp.close().await;
+        return Ok(());
+    }
+
+    let mut output = data.output;
+    if max_tokens > 0 {
+        let char_budget = max_tokens.saturating_mul(4);
+        if output.len() > char_budget {
+            let boundary = output.floor_char_boundary(char_budget);
+            output = format!(
+                "{}\n... (truncated to ~{} tokens)",
+                &output[..boundary],
+                max_tokens
+            );
+        }
+    }
+    println!("{output}");
+    cdp.close().await;
+    Ok(())
+}
+
+pub(super) async fn cmd_axtree_full(ctx: &mut AppContext, selector: Option<&str>) -> Result<()> {
+    let mut cdp = open_cdp(ctx).await?;
+    prepare_cdp(ctx, &mut cdp).await?;
+    cdp.send("Accessibility.enable", json!({})).await?;
+
+    if let Some(sel) = selector {
+        let context_id = get_frame_context_id(ctx, &mut cdp).await?;
+        let obj_result = runtime_evaluate_with_context(
+            &mut cdp,
+            &format!("document.querySelector({})", serde_json::to_string(sel)?),
+            false,
+            false,
+            context_id,
+        )
+        .await?;
+        let object_id = obj_result
+            .pointer("/result/objectId")
+            .and_then(Value::as_str)
+            .ok_or_else(|| anyhow!("Element not found: {sel}"))?;
+        let result = cdp
+            .send(
+                "Accessibility.queryAXTree",
+                json!({ "objectId": object_id }),
+            )
+            .await?;
+        println!("{}", serde_json::to_string_pretty(&result)?);
+    } else {
+        let result = cdp.send("Accessibility.getFullAXTree", json!({})).await?;
+        println!("{}", serde_json::to_string_pretty(&result)?);
+    }
+
+    cdp.send("Accessibility.disable", json!({})).await?;
+    cdp.close().await;
+    Ok(())
+}
+
+pub(super) async fn cmd_click(ctx: &mut AppContext, selector: &str) -> Result<()> {
+    let mut cdp = open_cdp(ctx).await?;
+    prepare_cdp(ctx, &mut cdp).await?;
+    let loc = locate_element(ctx, &mut cdp, selector).await?;
+
+    cdp.send(
+        "Input.dispatchMouseEvent",
+        json!({ "type": "mouseMoved", "x": loc.x, "y": loc.y }),
+    )
+    .await?;
+    sleep(Duration::from_millis(80)).await;
+    cdp.send(
+        "Input.dispatchMouseEvent",
+        json!({ "type": "mousePressed", "x": loc.x, "y": loc.y, "button": "left", "clickCount": 1 }),
+    )
+    .await?;
+    cdp.send(
+        "Input.dispatchMouseEvent",
+        json!({ "type": "mouseReleased", "x": loc.x, "y": loc.y, "button": "left", "clickCount": 1 }),
+    )
+    .await?;
+
+    println!("Clicked {} \"{}\"", loc.tag.to_lowercase(), loc.text);
+    sleep(Duration::from_millis(150)).await;
+    println!("{}", get_page_brief(&mut cdp).await?);
+    cdp.close().await;
+    Ok(())
+}
+
+pub(super) async fn cmd_type(ctx: &mut AppContext, selector: &str, text: &str) -> Result<()> {
+    let mut cdp = open_cdp(ctx).await?;
+    prepare_cdp(ctx, &mut cdp).await?;
+    let context_id = get_frame_context_id(ctx, &mut cdp).await?;
+
+    let focus_script = format!(
+        "(function() {{ const el = document.querySelector({sel}); if (!el) return {{ error: 'Element not found: ' + {sel} }}; el.focus(); if (el.select) el.select(); return {{ ok: true }}; }})()",
+        sel = serde_json::to_string(selector)?
+    );
+
+    let focus_result =
+        runtime_evaluate_with_context(&mut cdp, &focus_script, true, false, context_id).await?;
+    if let Some(err) = focus_result
+        .pointer("/result/value/error")
+        .and_then(Value::as_str)
+    {
+        bail!("{err}");
+    }
+
+    for ch in text.chars() {
+        let char_s = ch.to_string();
+        cdp.send(
+            "Input.dispatchKeyEvent",
+            json!({ "type": "keyDown", "text": char_s, "unmodifiedText": ch.to_string() }),
+        )
+        .await?;
+        cdp.send(
+            "Input.dispatchKeyEvent",
+            json!({ "type": "keyUp", "text": ch.to_string(), "unmodifiedText": ch.to_string() }),
+        )
+        .await?;
+    }
+
+    println!("Typed \"{}\" into {selector}", truncate(text, 50));
+    cdp.close().await;
+    Ok(())
+}
+
+pub(super) async fn cmd_press(ctx: &mut AppContext, key: &str) -> Result<()> {
+    let mut cdp = open_cdp(ctx).await?;
+    prepare_cdp(ctx, &mut cdp).await?;
+
+    if key.contains('+') {
+        let (mods, main_key) = parse_key_combo(key);
+        let mapping = key_mapping(&main_key);
+        let mod_bits = (if mods.alt { 1 } else { 0 })
+            | (if mods.ctrl { 2 } else { 0 })
+            | (if mods.meta { 4 } else { 0 })
+            | (if mods.shift { 8 } else { 0 });
+
+        cdp.send(
+            "Input.dispatchKeyEvent",
+            json!({
+                "type": "keyDown",
+                "key": mapping.key,
+                "code": mapping.code,
+                "keyCode": mapping.key_code,
+                "windowsVirtualKeyCode": mapping.key_code,
+                "nativeVirtualKeyCode": mapping.key_code,
+                "modifiers": mod_bits,
+            }),
+        )
+        .await?;
+
+        cdp.send(
+            "Input.dispatchKeyEvent",
+            json!({
+                "type": "keyUp",
+                "key": mapping.key,
+                "code": mapping.code,
+                "keyCode": mapping.key_code,
+                "windowsVirtualKeyCode": mapping.key_code,
+                "nativeVirtualKeyCode": mapping.key_code,
+                "modifiers": mod_bits,
+            }),
+        )
+        .await?;
+
+        println!("OK press {key}");
+        if matches!(main_key.to_lowercase().as_str(), "enter" | "tab" | "escape") {
+            sleep(Duration::from_millis(150)).await;
+            println!("{}", get_page_brief(&mut cdp).await?);
+        }
+
+        cdp.close().await;
+        return Ok(());
+    }
+
+    let mapping = key_mapping(key);
+    cdp.send(
+        "Input.dispatchKeyEvent",
+        json!({
+            "type": "keyDown",
+            "key": mapping.key,
+            "code": mapping.code,
+            "keyCode": mapping.key_code,
+            "windowsVirtualKeyCode": mapping.key_code,
+            "nativeVirtualKeyCode": mapping.key_code,
+        }),
+    )
+    .await?;
+    cdp.send(
+        "Input.dispatchKeyEvent",
+        json!({
+            "type": "keyUp",
+            "key": mapping.key,
+            "code": mapping.code,
+            "keyCode": mapping.key_code,
+            "windowsVirtualKeyCode": mapping.key_code,
+            "nativeVirtualKeyCode": mapping.key_code,
+        }),
+    )
+    .await?;
+
+    println!("OK press {key}");
+    if matches!(key.to_lowercase().as_str(), "enter" | "tab" | "escape") {
+        sleep(Duration::from_millis(150)).await;
+        println!("{}", get_page_brief(&mut cdp).await?);
+    }
+
+    cdp.close().await;
+    Ok(())
+}
+
+pub(super) async fn cmd_tabs(ctx: &mut AppContext) -> Result<()> {
+    let all_tabs = get_debug_tabs(ctx).await?;
+    let state = ctx.load_session_state()?;
+    let owned_ids = state
+        .tabs
+        .iter()
+        .cloned()
+        .collect::<std::collections::HashSet<_>>();
+    let owned = all_tabs
+        .into_iter()
+        .filter(|t| owned_ids.contains(&t.id))
+        .collect::<Vec<_>>();
+
+    if owned.is_empty() {
+        println!("No tabs owned by this session.");
+        return Ok(());
+    }
+
+    for tab in owned {
+        let active = if state.active_tab_id.as_deref() == Some(tab.id.as_str()) {
+            " *"
+        } else {
+            ""
+        };
+        println!(
+            "[{}] {} - {}{}",
+            tab.id,
+            tab.title.unwrap_or_else(|| "(untitled)".to_string()),
+            tab.url.unwrap_or_else(|| "(no url)".to_string()),
+            active
+        );
+    }
+
+    Ok(())
+}
+
+pub(super) async fn cmd_tab(ctx: &mut AppContext, tab_id: &str) -> Result<()> {
+    let mut state = ctx.load_session_state()?;
+    if !state.tabs.iter().any(|id| id == tab_id) {
+        bail!("Tab {tab_id} is not owned by this session.");
+    }
+
+    let all_tabs = get_debug_tabs(ctx).await?;
+    let tab = all_tabs
+        .iter()
+        .find(|t| t.id == tab_id)
+        .cloned()
+        .ok_or_else(|| anyhow!("Tab {tab_id} not found in Chrome"))?;
+
+    state.active_tab_id = Some(tab_id.to_string());
+    ctx.save_session_state(&state)?;
+
+    http_put_text(ctx, &format!("/json/activate/{tab_id}")).await?;
+    println!(
+        "Switched to tab: {}",
+        tab.title
+            .or(tab.url)
+            .unwrap_or_else(|| "(untitled)".to_string())
+    );
+    Ok(())
+}
+
+pub(super) async fn cmd_new_tab(ctx: &mut AppContext, url: Option<&str>) -> Result<()> {
+    let new_tab = create_new_tab(ctx, url).await?;
+    let mut state = ctx.load_session_state()?;
+    state.tabs.push(new_tab.id.clone());
+    state.active_tab_id = Some(new_tab.id.clone());
+    ctx.save_session_state(&state)?;
+
+    println!(
+        "New tab: [{}] {}",
+        new_tab.id,
+        new_tab.url.unwrap_or_else(|| "about:blank".to_string())
+    );
+    Ok(())
+}
+
+pub(super) async fn cmd_close(ctx: &mut AppContext) -> Result<()> {
+    let mut state = ctx.load_session_state()?;
+    let tab_id = state
+        .active_tab_id
+        .clone()
+        .ok_or_else(|| anyhow!("No active tab"))?;
+
+    http_put_text(ctx, &format!("/json/close/{tab_id}")).await?;
+    state.tabs.retain(|id| id != &tab_id);
+    state.active_tab_id = state.tabs.last().cloned();
+    ctx.save_session_state(&state)?;
+
+    println!("Closed tab {tab_id}");
+    if let Some(active) = state.active_tab_id {
+        println!("Active tab is now: {active}");
+    } else {
+        println!("No tabs remaining in this session.");
+    }
+
+    Ok(())
+}
+
+pub(super) async fn cmd_back(ctx: &mut AppContext) -> Result<()> {
+    let mut cdp = open_cdp(ctx).await?;
+    prepare_cdp(ctx, &mut cdp).await?;
+    let nav = cdp.send("Page.getNavigationHistory", json!({})).await?;
+
+    let current_index = nav
+        .get("currentIndex")
+        .and_then(Value::as_i64)
+        .ok_or_else(|| anyhow!("Invalid navigation history"))?;
+    let entries = nav
+        .get("entries")
+        .and_then(Value::as_array)
+        .ok_or_else(|| anyhow!("Invalid navigation history entries"))?;
+
+    if current_index <= 0 {
+        bail!("No previous page in history.");
+    }
+
+    let entry_id = entries[(current_index - 1) as usize]
+        .get("id")
+        .and_then(Value::as_i64)
+        .ok_or_else(|| anyhow!("Missing history entry id"))?;
+
+    cdp.send(
+        "Page.navigateToHistoryEntry",
+        json!({ "entryId": entry_id }),
+    )
+    .await?;
+    sleep(Duration::from_millis(500)).await;
+    println!("{}", get_page_brief(&mut cdp).await?);
+    cdp.close().await;
+    Ok(())
+}
+
+pub(super) async fn cmd_forward(ctx: &mut AppContext) -> Result<()> {
+    let mut cdp = open_cdp(ctx).await?;
+    prepare_cdp(ctx, &mut cdp).await?;
+    let nav = cdp.send("Page.getNavigationHistory", json!({})).await?;
+
+    let current_index = nav
+        .get("currentIndex")
+        .and_then(Value::as_i64)
+        .ok_or_else(|| anyhow!("Invalid navigation history"))?;
+    let entries = nav
+        .get("entries")
+        .and_then(Value::as_array)
+        .ok_or_else(|| anyhow!("Invalid navigation history entries"))?;
+
+    if current_index >= entries.len() as i64 - 1 {
+        bail!("No next page in history.");
+    }
+
+    let entry_id = entries[(current_index + 1) as usize]
+        .get("id")
+        .and_then(Value::as_i64)
+        .ok_or_else(|| anyhow!("Missing history entry id"))?;
+
+    cdp.send(
+        "Page.navigateToHistoryEntry",
+        json!({ "entryId": entry_id }),
+    )
+    .await?;
+    sleep(Duration::from_millis(500)).await;
+    println!("{}", get_page_brief(&mut cdp).await?);
+    cdp.close().await;
+    Ok(())
+}
+
+pub(super) async fn cmd_reload(ctx: &mut AppContext) -> Result<()> {
+    let mut cdp = open_cdp(ctx).await?;
+    prepare_cdp(ctx, &mut cdp).await?;
+    cdp.send("Page.reload", json!({})).await?;
+    wait_for_ready_state_complete(&mut cdp, Duration::from_secs(15)).await?;
+    println!("{}", get_page_brief(&mut cdp).await?);
+    cdp.close().await;
+    Ok(())
+}
+
+pub(super) async fn cmd_screenshot(ctx: &mut AppContext) -> Result<()> {
+    let mut cdp = open_cdp(ctx).await?;
+    prepare_cdp(ctx, &mut cdp).await?;
+    let result = cdp
+        .send("Page.captureScreenshot", json!({ "format": "png" }))
+        .await?;
+    let data = result
+        .get("data")
+        .and_then(Value::as_str)
+        .ok_or_else(|| anyhow!("Missing screenshot data"))?;
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(data)
+        .context("Failed to decode screenshot data")?;
+    let sid = ctx
+        .current_session_id
+        .clone()
+        .unwrap_or_else(|| "default".to_string());
+    let out = ctx
+        .tmp_dir()
+        .join(format!("webact-rs-screenshot-{sid}.png"));
+    fs::write(&out, bytes).with_context(|| format!("failed writing {}", out.display()))?;
+    println!("Screenshot saved to {}", out.display());
+    cdp.close().await;
+    Ok(())
+}
+
+pub(super) async fn cmd_pdf(ctx: &mut AppContext, output_path: Option<&str>) -> Result<()> {
+    let mut cdp = open_cdp(ctx).await?;
+    prepare_cdp(ctx, &mut cdp).await?;
+    let result = cdp
+        .send(
+            "Page.printToPDF",
+            json!({
+                "printBackground": true,
+                "preferCSSPageSize": true
+            }),
+        )
+        .await?;
+    let data = result
+        .get("data")
+        .and_then(Value::as_str)
+        .ok_or_else(|| anyhow!("Missing PDF data"))?;
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(data)
+        .context("Failed to decode PDF data")?;
+    let sid = ctx
+        .current_session_id
+        .clone()
+        .unwrap_or_else(|| "default".to_string());
+    let out = output_path
+        .map(PathBuf::from)
+        .unwrap_or_else(|| ctx.tmp_dir().join(format!("webact-rs-page-{sid}.pdf")));
+    fs::write(&out, bytes).with_context(|| format!("failed writing {}", out.display()))?;
+    println!("PDF saved to {}", out.display());
+    cdp.close().await;
+    Ok(())
+}
