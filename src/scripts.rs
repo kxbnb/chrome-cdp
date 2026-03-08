@@ -207,6 +207,188 @@ pub const DOM_EXTRACT_TEMPLATE: &str = r#"
 })()
 "#;
 
+pub const READ_EXTRACT_TEMPLATE: &str = r#"
+(function() {
+  const SKIP = new Set(['SCRIPT','STYLE','SVG','NOSCRIPT','LINK','META','HEAD','NAV','FOOTER','ASIDE']);
+  const BLOCK = new Set(['P','DIV','SECTION','ARTICLE','H1','H2','H3','H4','H5','H6','LI','TR','BLOCKQUOTE','PRE','DT','DD','FIGCAPTION','HEADER']);
+  const HEADING = new Set(['H1','H2','H3','H4','H5','H6']);
+
+  function isVisible(el) {
+    if (el.offsetParent === null && el.tagName !== 'BODY' && el.tagName !== 'HTML') {
+      const style = getComputedStyle(el);
+      if (style.display === 'none' || style.visibility === 'hidden') return false;
+      if (style.position !== 'fixed' && style.position !== 'sticky') return false;
+    }
+    return true;
+  }
+
+  function findMain(root) {
+    const main = root.querySelector('main,[role=main],article,.article,.post,.content,.entry-content,#content,#main');
+    if (main && main.textContent.trim().length > 200) return main;
+    return null;
+  }
+
+  function extract(node, lines, depth) {
+    if (!node) return;
+    if (node.nodeType === 3) {
+      const t = node.textContent.replace(/\s+/g, ' ').trim();
+      if (t) {
+        if (lines.length && !lines[lines.length-1].endsWith('\n')) {
+          lines[lines.length-1] += ' ' + t;
+        } else {
+          lines.push(t);
+        }
+      }
+      return;
+    }
+    if (node.nodeType !== 1) return;
+    const tag = node.tagName;
+    if (SKIP.has(tag)) return;
+    if (!isVisible(node)) return;
+
+    if (HEADING.has(tag)) {
+      const text = node.textContent.replace(/\s+/g, ' ').trim();
+      if (text) {
+        const level = parseInt(tag[1]);
+        lines.push('#'.repeat(Math.min(level, 3)) + ' ' + text + '\n');
+      }
+      return;
+    }
+    if (tag === 'LI') {
+      const text = node.textContent.replace(/\s+/g, ' ').trim();
+      if (text) lines.push('- ' + text.substring(0, 200) + '\n');
+      return;
+    }
+    if (tag === 'TR') {
+      const cells = [...node.querySelectorAll('td,th')].map(c => c.textContent.replace(/\s+/g,' ').trim().substring(0,60));
+      if (cells.length && cells.some(c => c)) lines.push(cells.join(' | ') + '\n');
+      return;
+    }
+    if (tag === 'IMG') {
+      const alt = node.getAttribute('alt');
+      if (alt) lines.push('[image: ' + alt.substring(0, 80) + ']\n');
+      return;
+    }
+    if (tag === 'A') {
+      const text = node.textContent.replace(/\s+/g, ' ').trim();
+      if (text && text.length < 200) {
+        if (lines.length && !lines[lines.length-1].endsWith('\n')) {
+          lines[lines.length-1] += ' ' + text;
+        } else {
+          lines.push(text);
+        }
+      }
+      return;
+    }
+
+    const isBlock = BLOCK.has(tag);
+    for (const child of node.childNodes) extract(child, lines, depth + 1);
+    if (node.shadowRoot) for (const child of node.shadowRoot.childNodes) extract(child, lines, depth + 1);
+    if (isBlock && lines.length && !lines[lines.length-1].endsWith('\n')) {
+      lines[lines.length-1] += '\n';
+    }
+  }
+
+  const root = __WEBACT_ROOT__;
+  if (!root) return 'ERROR: Element not found' + (__WEBACT_SELECTOR_SUFFIX__);
+  const contentRoot = findMain(root) || root;
+  const lines = [];
+  extract(contentRoot, lines, 0);
+  return lines.join('').replace(/\n{3,}/g, '\n\n').trim();
+})()
+"#;
+
+pub const TEXT_EXTRACT_TEMPLATE: &str = r#"
+(function() {
+  __WEBACT_SELECTOR_GEN__
+
+  const SKIP = new Set(['SCRIPT','STYLE','SVG','NOSCRIPT','LINK','META','HEAD']);
+  const INTERACTIVE_SEL = 'a,button,input,textarea,select,[role=button],[role=link],[role=textbox],[role=checkbox],[role=radio],[tabindex]:not([tabindex="-1"])';
+  const HEADING = new Set(['H1','H2','H3','H4','H5','H6']);
+
+  function isVisible(el) {
+    if (el.offsetParent === null && el.tagName !== 'BODY' && el.tagName !== 'HTML') {
+      const style = getComputedStyle(el);
+      if (style.display === 'none' || style.visibility === 'hidden') return false;
+      if (style.position !== 'fixed' && style.position !== 'sticky') return false;
+    }
+    return true;
+  }
+
+  function defaultRole(el) {
+    const tag = el.tagName.toLowerCase();
+    if (tag === 'a') return 'link';
+    if (tag === 'button') return 'button';
+    if (tag === 'input') {
+      const t = (el.type || 'text').toLowerCase();
+      if (t === 'checkbox') return 'checkbox';
+      if (t === 'radio') return 'radio';
+      if (t === 'submit' || t === 'button') return 'button';
+      return 'textbox';
+    }
+    if (tag === 'textarea') return 'textbox';
+    if (tag === 'select') return 'combobox';
+    return '';
+  }
+
+  const interactiveSet = new Set();
+  const refMap = {};
+  let refCounter = 0;
+  const lines = [];
+
+  function getName(el) {
+    return (el.getAttribute('aria-label') || el.textContent || el.getAttribute('placeholder') || el.value || el.id || el.name || '').replace(/\s+/g,' ').trim().substring(0, 100);
+  }
+
+  function processInteractive(el) {
+    if (interactiveSet.has(el)) return null;
+    interactiveSet.add(el);
+    refCounter++;
+    const sel = window.__webactGenSelector(el);
+    const role = (el.getAttribute('role') || defaultRole(el) || '').trim();
+    const name = getName(el);
+    refMap[String(refCounter)] = sel;
+    return { ref: refCounter, role, name, selector: sel, tag: el.tagName.toLowerCase() };
+  }
+
+  function walk(node) {
+    if (!node) return;
+    if (node.nodeType === 3) {
+      const t = node.textContent.replace(/\s+/g, ' ').trim();
+      if (t) lines.push(t);
+      return;
+    }
+    if (node.nodeType !== 1) return;
+    const tag = node.tagName;
+    if (SKIP.has(tag)) return;
+    if (!isVisible(node)) return;
+
+    if (node.matches && node.matches(INTERACTIVE_SEL)) {
+      const info = processInteractive(node);
+      if (info) {
+        const label = info.name ? info.role + ' "' + info.name.substring(0, 60) + '"' : info.role;
+        lines.push('[' + info.ref + '] ' + label);
+      }
+      return;
+    }
+
+    if (HEADING.has(tag)) {
+      const text = node.textContent.replace(/\s+/g, ' ').trim();
+      if (text) lines.push('#'.repeat(parseInt(tag[1])) + ' ' + text);
+      return;
+    }
+
+    for (const child of node.childNodes) walk(child);
+    if (node.shadowRoot) for (const child of node.shadowRoot.childNodes) walk(child);
+  }
+
+  const root = __WEBACT_ROOT__;
+  if (!root) return JSON.stringify({ error: 'Element not found' + (__WEBACT_SELECTOR_SUFFIX__) });
+  walk(root);
+  return JSON.stringify({ lines: lines, refMap: refMap });
+})()
+"#;
+
 pub const AXTREE_INTERACTIVE_SCRIPT: &str = r#"
 (function() {
   __WEBACT_SELECTOR_GEN__

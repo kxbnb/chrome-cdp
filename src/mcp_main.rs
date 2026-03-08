@@ -255,6 +255,21 @@ fn map_tool_args(command: &str, arguments: &Value) -> Vec<String> {
         "navigate" => {
             vec_from_opt_str(arguments, "url")
         }
+        // Read: optional selector, optional --tokens=N
+        "read" | "text" => {
+            let mut args = Vec::new();
+            if let Some(sel) = arguments.get("selector").and_then(Value::as_str) {
+                if !sel.is_empty() {
+                    args.push(sel.to_string());
+                }
+            }
+            if let Some(tokens) = arguments.get("max_tokens").and_then(Value::as_i64) {
+                if tokens > 0 {
+                    args.push(format!("--tokens={tokens}"));
+                }
+            }
+            args
+        }
         // DOM: optional selector, optional --tokens=N
         "dom" => {
             let mut args = Vec::new();

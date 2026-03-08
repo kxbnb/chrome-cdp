@@ -20,6 +20,30 @@
     }
   },
   {
+    "name": "webact_read",
+    "description": "Extract readable text content from the page, like browser reader mode. Strips navigation, sidebars, ads, and UI chrome. Returns clean text with headings, lists, and paragraphs. Best for articles, docs, and information retrieval.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "selector": { "type": "string", "description": "CSS selector to scope extraction" },
+        "max_tokens": { "type": "integer", "description": "Approximate token limit for output" }
+      },
+      "required": []
+    }
+  },
+  {
+    "name": "webact_text",
+    "description": "Get full page content in reading order, interleaving static text with interactive elements (numbered refs). Like a screen reader view. Use ref numbers in click/type/etc. Best for understanding complex pages where you need both content and interaction targets.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "selector": { "type": "string", "description": "CSS selector to scope extraction" },
+        "max_tokens": { "type": "integer", "description": "Approximate token limit for output" }
+      },
+      "required": []
+    }
+  },
+  {
     "name": "webact_dom",
     "description": "Get compact DOM of the page. Scripts, styles, SVGs, and hidden elements are stripped. Use selector to scope, max_tokens to limit output size.",
     "inputSchema": {

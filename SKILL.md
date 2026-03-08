@@ -41,6 +41,8 @@ webact dom
 | `back` | `webact back` |
 | `forward` | `webact forward` |
 | `reload` | `webact reload` |
+| `read [selector] [--tokens=N]` | `webact read` or `webact read article` or `webact read --tokens=2000` |
+| `text [selector] [--tokens=N]` | `webact text` or `webact text --tokens=2000` |
 | `dom [selector] [--tokens=N]` | `webact dom` or `webact dom .results` or `webact dom --tokens=1000` |
 | `axtree [selector] [-i]` | `webact axtree` or `webact axtree -i` |
 | `observe` | `webact observe` |
@@ -84,6 +86,10 @@ webact dom
 **`click` behavior:** Waits up to 5s for the element, scrolls it into view, then clicks. No manual waits needed for dynamic elements. Fallbacks when CSS selectors fail: `click 550,197` clicks at exact coordinates (from screenshot), `click --text Close` finds and clicks a visible element by text content.
 
 **`dialog` behavior:** Sets a one-shot auto-handler. Run BEFORE the action that triggers the dialog.
+
+**`read`:** Reader-mode text extraction. Strips navigation, sidebars, ads, and returns just the main content as clean text with headings, lists, and paragraphs. Best for articles, docs, search results, and information retrieval.
+
+**`text`:** Full page in reading order, interleaving static text with interactive elements (numbered refs). Like a screen reader view. Generates ref map as side effect, so you can use ref numbers in click/type/etc afterward. Best for complex pages where you need both content and interaction targets.
 
 **`axtree` vs `dom`:** The accessibility tree shows semantic roles (button, link, heading, textbox) and accessible names - better for understanding page structure. Use `dom` when you need HTML structure/selectors; use `axtree` when you need to understand what's on the page.
 

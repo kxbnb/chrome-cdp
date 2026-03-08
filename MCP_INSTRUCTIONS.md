@@ -12,13 +12,17 @@ Control Chrome directly via the Chrome DevTools Protocol. Chrome auto-launches o
 
 **`dialog` behavior:** Sets a one-shot auto-handler. Call BEFORE the action that triggers the dialog.
 
+**`read`:** Reader-mode text extraction. Strips navigation, sidebars, ads — returns clean text with headings, lists, paragraphs. Best for articles, docs, search results, and information retrieval. Supports selector and max_tokens.
+
+**`text`:** Full page in reading order, interleaving static text with interactive elements (numbered refs). Like a screen reader view — shows everything visible. Generates ref map as side effect. Best for understanding complex pages where you need both content and interaction targets.
+
 **`axtree` vs `dom`:** The accessibility tree shows semantic roles and accessible names — better for understanding page structure. Use `dom` when you need HTML structure/selectors; use `axtree` when you need to understand what's on the page.
 
-**`axtree -i` (interactive mode):** Shows only actionable elements as a flat numbered list. Most token-efficient view. After running with interactive=true, use ref numbers directly as selectors: click ref 1, type into ref 3. Refs are cached per URL.
+**`axtree -i` (interactive mode):** Shows only actionable elements as a flat numbered list. Most token-efficient view for interaction. After running with interactive=true, use ref numbers directly as selectors: click ref 1, type into ref 3. Refs are cached per URL.
 
 **`observe`:** Like axtree interactive but formats each element as a ready-to-use action. Generates the ref map as a side effect.
 
-**Ref-based targeting:** After axtree interactive or observe, numeric refs work in all selector-accepting tools: click, type, select, hover, focus, clear, doubleclick, rightclick, upload, drag, waitfor, dom.
+**Ref-based targeting:** After axtree interactive, observe, or text, numeric refs work in all selector-accepting tools: click, type, select, hover, focus, clear, doubleclick, rightclick, upload, drag, waitfor, dom.
 
 **`press` combos:** Supports modifier keys: Ctrl+A (select all), Ctrl+C (copy), Meta+V (paste on Mac), Shift+Enter, etc.
 
@@ -47,7 +51,7 @@ Each session creates and owns its own tabs. Sessions never interfere with each o
 
 1. **PLAN** — Break the goal into steps.
 2. **ACT** — Call the appropriate tool. State-changing tools auto-return a page brief.
-3. **DECIDE** — Read the brief. Expected state? Continue. Login wall/CAPTCHA? Tell user. Need more detail? Use dom. Goal complete? Report.
+3. **DECIDE** — Read the brief. Expected state? Continue. Login wall/CAPTCHA? Tell user. Need page content? Use `read`. Need full page with interaction targets? Use `text`. Need HTML structure? Use `dom`. Goal complete? Report.
 4. **REPEAT** until done or blocked.
 
 ## Rules
@@ -68,12 +72,24 @@ Each session creates and owns its own tabs. Sessions never interfere with each o
 
 8. **Track tab IDs.** Note tab IDs from launch/newtab output. Verify you're on the expected tab before acting.
 
+## Choosing the Right Reading Tool
+
+| Need | Tool | Output |
+|------|------|--------|
+| Page content (articles, docs) | `read` | Clean text, no UI chrome |
+| Full page + interaction targets | `text` | Text + numbered refs |
+| Interactive elements only | `axtree -i` | Flat list of clickable/typeable elements |
+| HTML structure/selectors | `dom` | Compact HTML |
+| Visual layout | `screenshot` | PNG image |
+
 ## Token Efficiency
 
-dom returns the full compact DOM — scripts, styles, SVGs, and hidden elements stripped. For large SPAs:
+For large SPAs, manage output size:
+- `read` — most compact for content (strips nav/sidebar/ads)
+- `text` with max_tokens — full page with refs, capped
 - dom with selector — scope to a specific part
 - dom with max_tokens — cap output size
-- axtree interactive — most compact view
+- axtree interactive — interactive elements only
 
 ## Finding Elements (priority order)
 

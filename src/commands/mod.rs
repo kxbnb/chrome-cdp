@@ -38,6 +38,40 @@ pub async fn dispatch(ctx: &mut AppContext, command: &str, args: &[String]) -> R
             };
             cmd_dom(ctx, selector.as_deref(), max_tokens).await
         }
+        "read" => {
+            let mut max_tokens = 0usize;
+            let mut selector_parts = Vec::new();
+            for arg in args {
+                if let Some(raw) = arg.strip_prefix("--tokens=") {
+                    max_tokens = raw.parse::<usize>().unwrap_or(0);
+                } else {
+                    selector_parts.push(arg.clone());
+                }
+            }
+            let selector = if selector_parts.is_empty() {
+                None
+            } else {
+                Some(resolve_selector(ctx, &selector_parts.join(" "))?)
+            };
+            cmd_read(ctx, selector.as_deref(), max_tokens).await
+        }
+        "text" => {
+            let mut max_tokens = 0usize;
+            let mut selector_parts = Vec::new();
+            for arg in args {
+                if let Some(raw) = arg.strip_prefix("--tokens=") {
+                    max_tokens = raw.parse::<usize>().unwrap_or(0);
+                } else {
+                    selector_parts.push(arg.clone());
+                }
+            }
+            let selector = if selector_parts.is_empty() {
+                None
+            } else {
+                Some(resolve_selector(ctx, &selector_parts.join(" "))?)
+            };
+            cmd_text(ctx, selector.as_deref(), max_tokens).await
+        }
         "axtree" => {
             let interactive = args.iter().any(|a| a == "-i" || a == "--interactive");
             let diff = args.iter().any(|a| a == "--diff");
@@ -54,7 +88,9 @@ pub async fn dispatch(ctx: &mut AppContext, command: &str, args: &[String]) -> R
             if interactive {
                 cmd_axtree_interactive(ctx, max_tokens, diff).await
             } else {
-                cmd_axtree_full(ctx, selector).await
+                // Default cap for full axtree to prevent 1M+ char output
+                let effective_max = if max_tokens > 0 { max_tokens } else { 4000 };
+                cmd_axtree_full(ctx, selector, effective_max).await
             }
         }
         "screenshot" => cmd_screenshot(ctx).await,

@@ -354,6 +354,37 @@ pub fn build_dom_extract_script(selector: Option<&str>) -> Result<String> {
         .replace("__WEBACT_SELECTOR_SUFFIX__", &selector_suffix))
 }
 
+pub fn build_read_extract_script(selector: Option<&str>) -> Result<String> {
+    let root = match selector {
+        Some(sel) => format!("document.querySelector({})", serde_json::to_string(sel)?),
+        None => "document.body".to_string(),
+    };
+    let selector_suffix = match selector {
+        Some(sel) => format!("' for selector: ' + {}", serde_json::to_string(sel)?),
+        None => "''".to_string(),
+    };
+
+    Ok(READ_EXTRACT_TEMPLATE
+        .replace("__WEBACT_ROOT__", &root)
+        .replace("__WEBACT_SELECTOR_SUFFIX__", &selector_suffix))
+}
+
+pub fn build_text_extract_script(selector: Option<&str>) -> Result<String> {
+    let root = match selector {
+        Some(sel) => format!("document.querySelector({})", serde_json::to_string(sel)?),
+        None => "document.body".to_string(),
+    };
+    let selector_suffix = match selector {
+        Some(sel) => format!("' for selector: ' + {}", serde_json::to_string(sel)?),
+        None => "''".to_string(),
+    };
+
+    Ok(TEXT_EXTRACT_TEMPLATE
+        .replace("__WEBACT_ROOT__", &root)
+        .replace("__WEBACT_SELECTOR_SUFFIX__", &selector_suffix)
+        .replace("__WEBACT_SELECTOR_GEN__", SELECTOR_GEN_SCRIPT))
+}
+
 pub fn parse_key_combo(combo: &str) -> (KeyModifiers, String) {
     let mut modifiers = KeyModifiers {
         ctrl: false,

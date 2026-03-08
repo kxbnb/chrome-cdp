@@ -139,6 +139,36 @@ pub(super) async fn cmd_dom(
         .unwrap_or_default()
         .to_string();
 
+    if dom_output.starts_with("ERROR: Element not found") {
+        // Suggest alternative selectors
+        let suggest_script = r#"(function() {
+            const s = [];
+            document.querySelectorAll('[id]').forEach(el => {
+                if (s.length < 5) s.push('#' + CSS.escape(el.id));
+            });
+            document.querySelectorAll('[data-testid]').forEach(el => {
+                if (s.length < 8) s.push('[data-testid="' + el.getAttribute('data-testid') + '"]');
+            });
+            ['main','article','section','nav','form','table'].forEach(tag => {
+                if (s.length < 10 && document.querySelector(tag)) s.push(tag);
+            });
+            return s;
+        })()"#;
+        let suggest_result = runtime_evaluate_with_context(&mut cdp, suggest_script, true, false, context_id).await?;
+        let suggestions = suggest_result
+            .pointer("/result/value")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
+        if !suggestions.is_empty() {
+            let sel_list: Vec<&str> = suggestions.iter().filter_map(Value::as_str).collect();
+            dom_output = format!("{dom_output}\n\nAvailable selectors: {}", sel_list.join(", "));
+        }
+        out!(ctx, "{dom_output}");
+        cdp.close().await;
+        return Ok(());
+    }
+
     if max_tokens > 0 {
         let char_budget = max_tokens.saturating_mul(4);
         if dom_output.len() > char_budget {
@@ -227,12 +257,12 @@ pub(super) async fn cmd_axtree_interactive(
     Ok(())
 }
 
-pub(super) async fn cmd_axtree_full(ctx: &mut AppContext, selector: Option<&str>) -> Result<()> {
+pub(super) async fn cmd_axtree_full(ctx: &mut AppContext, selector: Option<&str>, max_tokens: usize) -> Result<()> {
     let mut cdp = open_cdp(ctx).await?;
     prepare_cdp(ctx, &mut cdp).await?;
     cdp.send("Accessibility.enable", json!({})).await?;
 
-    if let Some(sel) = selector {
+    let mut output = if let Some(sel) = selector {
         let context_id = get_frame_context_id(ctx, &mut cdp).await?;
         let obj_result = runtime_evaluate_with_context(
             &mut cdp,
@@ -252,13 +282,134 @@ pub(super) async fn cmd_axtree_full(ctx: &mut AppContext, selector: Option<&str>
                 json!({ "objectId": object_id }),
             )
             .await?;
-        out!(ctx, "{}", serde_json::to_string_pretty(&result)?);
+        serde_json::to_string_pretty(&result)?
     } else {
         let result = cdp.send("Accessibility.getFullAXTree", json!({})).await?;
-        out!(ctx, "{}", serde_json::to_string_pretty(&result)?);
+        serde_json::to_string_pretty(&result)?
+    };
+
+    if max_tokens > 0 {
+        let char_budget = max_tokens.saturating_mul(4);
+        if output.len() > char_budget {
+            let boundary = output.floor_char_boundary(char_budget);
+            output = format!(
+                "{}\n... (truncated to ~{} tokens — use axtree -i for interactive elements or axtree with selector to scope)",
+                &output[..boundary],
+                max_tokens
+            );
+        }
     }
 
+    out!(ctx, "{output}");
     cdp.send("Accessibility.disable", json!({})).await?;
+    cdp.close().await;
+    Ok(())
+}
+
+pub(super) async fn cmd_read(
+    ctx: &mut AppContext,
+    selector: Option<&str>,
+    max_tokens: usize,
+) -> Result<()> {
+    let script = build_read_extract_script(selector)?;
+    let mut cdp = open_cdp(ctx).await?;
+    prepare_cdp(ctx, &mut cdp).await?;
+    let context_id = get_frame_context_id(ctx, &mut cdp).await?;
+    let result = runtime_evaluate_with_context(&mut cdp, &script, true, false, context_id).await?;
+    let mut output = result
+        .pointer("/result/value")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string();
+
+    if max_tokens > 0 {
+        let char_budget = max_tokens.saturating_mul(4);
+        if output.len() > char_budget {
+            let boundary = output.floor_char_boundary(char_budget);
+            output = format!(
+                "{}\n... (truncated to ~{} tokens)",
+                &output[..boundary],
+                max_tokens
+            );
+        }
+    }
+
+    out!(ctx, "{output}");
+    cdp.close().await;
+    Ok(())
+}
+
+pub(super) async fn cmd_text(
+    ctx: &mut AppContext,
+    selector: Option<&str>,
+    max_tokens: usize,
+) -> Result<()> {
+    let script = build_text_extract_script(selector)?;
+    let mut cdp = open_cdp(ctx).await?;
+    prepare_cdp(ctx, &mut cdp).await?;
+    let context_id = get_frame_context_id(ctx, &mut cdp).await?;
+    let result = runtime_evaluate_with_context(&mut cdp, &script, true, false, context_id).await?;
+    let raw = result
+        .pointer("/result/value")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+
+    let parsed: Value = serde_json::from_str(raw).unwrap_or(Value::Null);
+
+    if let Some(err) = parsed.get("error").and_then(Value::as_str) {
+        out!(ctx, "ERROR: {err}");
+        cdp.close().await;
+        return Ok(());
+    }
+
+    let lines = parsed
+        .get("lines")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let ref_map_val = parsed
+        .get("refMap")
+        .cloned()
+        .unwrap_or(json!({}));
+
+    // Save ref map to session state
+    if let Some(obj) = ref_map_val.as_object() {
+        let ref_map: HashMap<String, String> = obj
+            .iter()
+            .filter_map(|(k, v)| v.as_str().map(|s| (k.clone(), s.to_string())))
+            .collect();
+        if !ref_map.is_empty() {
+            let mut state = ctx.load_session_state()?;
+            state.ref_map = Some(ref_map);
+            let url_result = runtime_evaluate(&mut cdp, "location.href", true, false).await?;
+            state.ref_map_url = url_result
+                .pointer("/result/value")
+                .and_then(Value::as_str)
+                .map(|s| s.to_string());
+            state.ref_map_timestamp = Some(now_epoch_ms());
+            ctx.save_session_state(&state)?;
+        }
+    }
+
+    let mut output = lines
+        .iter()
+        .filter_map(Value::as_str)
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    if max_tokens > 0 {
+        let char_budget = max_tokens.saturating_mul(4);
+        if output.len() > char_budget {
+            let boundary = output.floor_char_boundary(char_budget);
+            output = format!(
+                "{}\n... (truncated to ~{} tokens)",
+                &output[..boundary],
+                max_tokens
+            );
+        }
+    }
+
+    out!(ctx, "{output}");
     cdp.close().await;
     Ok(())
 }
