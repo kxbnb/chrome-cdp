@@ -45,12 +45,11 @@ jobs:
           echo 'linker = "aarch64-linux-gnu-gcc"' >> ~/.cargo/config.toml
 
       - name: Build
-        working-directory: skills/webact-rs
         run: cargo build --release --target ${{ matrix.target }} --bin webact-mcp
 
       - name: Package
         run: |
-          cp skills/webact-rs/target/${{ matrix.target }}/release/webact-mcp ${{ matrix.name }}
+          cp target/${{ matrix.target }}/release/webact-mcp ${{ matrix.name }}
           chmod +x ${{ matrix.name }}
           tar czf ${{ matrix.name }}.tar.gz ${{ matrix.name }}
 

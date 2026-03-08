@@ -24,7 +24,9 @@ NEW="${MAJOR}.${MINOR}.${PATCH}"
 # Update all version files
 sed -i '' "s/\"version\": *\"$CURRENT\"/\"version\": \"$NEW\"/g" \
   "$DIR/.claude-plugin/plugin.json" \
-  "$DIR/.claude-plugin/marketplace.json" \
-  "$DIR/skills/webact/package.json"
+  "$DIR/.claude-plugin/marketplace.json"
+
+# Update Cargo.toml version
+sed -i '' "s/^version = \".*\"/version = \"$NEW\"/" "$DIR/Cargo.toml"
 
 echo "$CURRENT -> $NEW"

@@ -1,1 +1,0 @@
-../webact/MCP_INSTRUCTIONS.md

@@ -1,14 +1,14 @@
 # WebAct
 
-This repo provides a browser automation skill using the Chrome DevTools Protocol.
+Browser automation via the Chrome DevTools Protocol. Rust implementation.
 
-## Skills
+## Binary
 
-The `webact` skill is in `skills/webact/`. It lets you control any Chromium-based browser (Chrome, Edge, Brave, Arc, etc.) to accomplish goals like navigating pages, filling forms, clicking elements, and reading content.
+The `webact-rs` CLI and `webact-mcp` MCP server are built from `src/`.
 
 ## Setup
 
-No setup required - all dependencies are bundled.
+Install via `install.sh` or build from source with `cargo build --release`.
 
 ## Sandbox Note
 

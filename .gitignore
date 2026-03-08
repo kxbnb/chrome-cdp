@@ -1,2 +1,3 @@
-node_modules/
+/target
 .vercel
+.DS_Store
