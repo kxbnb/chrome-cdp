@@ -4,7 +4,7 @@ Browser automation via the Chrome DevTools Protocol. Rust implementation.
 
 ## Binary
 
-The `webact-rs` CLI and `webact-mcp` MCP server are built from `src/`.
+The `webact` CLI and `webact-mcp` MCP server are built from `src/`.
 
 ## Setup
 

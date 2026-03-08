@@ -91,7 +91,7 @@ pub(crate) async fn cmd_wait_for_nav(ctx: &mut AppContext, timeout_ms: Option<&s
 pub(crate) async fn cmd_scroll(ctx: &mut AppContext, args: &[String]) -> Result<()> {
     if args.is_empty() {
         bail!(
-            "Usage: webact-rs scroll <up|down|top|bottom|selector> [pixels]\n       webact-rs scroll <selector> <up|down|top|bottom> [pixels]"
+            "Usage: webact scroll <up|down|top|bottom|selector> [pixels]\n       webact scroll <selector> <up|down|top|bottom> [pixels]"
         );
     }
     let directions = ["up", "down", "top", "bottom"];

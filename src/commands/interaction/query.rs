@@ -2,7 +2,7 @@ use super::*;
 
 pub(crate) async fn cmd_eval(ctx: &mut AppContext, expression: &str) -> Result<()> {
     if expression.is_empty() {
-        bail!("Usage: webact-rs eval <js-expression>");
+        bail!("Usage: webact eval <js-expression>");
     }
     let mut cdp = open_cdp(ctx).await?;
     prepare_cdp(ctx, &mut cdp).await?;
@@ -94,7 +94,7 @@ pub(crate) async fn cmd_observe(ctx: &mut AppContext) -> Result<()> {
 
 pub(crate) async fn cmd_find(ctx: &mut AppContext, query: &str) -> Result<()> {
     if query.trim().is_empty() {
-        bail!("Usage: webact-rs find <query>");
+        bail!("Usage: webact find <query>");
     }
     let mut cdp = open_cdp(ctx).await?;
     prepare_cdp(ctx, &mut cdp).await?;

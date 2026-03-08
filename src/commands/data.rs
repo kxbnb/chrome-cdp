@@ -52,7 +52,7 @@ pub(super) async fn cmd_cookies(ctx: &mut AppContext, args: &[String]) -> Result
         }
         "set" => {
             if args.len() < 3 {
-                bail!("Usage: webact-rs cookies set <name> <value> [domain]");
+                bail!("Usage: webact cookies set <name> <value> [domain]");
             }
             let name = args[1].clone();
             let value = args[2].clone();
@@ -85,7 +85,7 @@ pub(super) async fn cmd_cookies(ctx: &mut AppContext, args: &[String]) -> Result
         }
         "delete" => {
             if args.len() < 2 {
-                bail!("Usage: webact-rs cookies delete <name> [domain]");
+                bail!("Usage: webact cookies delete <name> [domain]");
             }
             let name = args[1].clone();
             let mut cdp = open_cdp(ctx).await?;
@@ -108,7 +108,7 @@ pub(super) async fn cmd_cookies(ctx: &mut AppContext, args: &[String]) -> Result
             out!(ctx, "Deleted cookie: {} ({})", name, domain);
             cdp.close().await;
         }
-        _ => bail!("Usage: webact-rs cookies [get|set|clear|delete] [args]"),
+        _ => bail!("Usage: webact cookies [get|set|clear|delete] [args]"),
     }
     Ok(())
 }
@@ -213,7 +213,7 @@ pub(super) async fn cmd_console(ctx: &mut AppContext, action: Option<&str>) -> R
                 }
             }
         }
-        _ => bail!("Usage: webact-rs console [show|errors|listen]"),
+        _ => bail!("Usage: webact console [show|errors|listen]"),
     }
     #[allow(unreachable_code)]
     Ok(())
@@ -392,7 +392,7 @@ pub(super) async fn cmd_network(ctx: &mut AppContext, args: &[String]) -> Result
                     .unwrap_or_default()
             );
         }
-        _ => bail!("Usage: webact-rs network [capture [seconds] [filter]|show [filter]]"),
+        _ => bail!("Usage: webact network [capture [seconds] [filter]|show [filter]]"),
     }
     Ok(())
 }
@@ -400,7 +400,7 @@ pub(super) async fn cmd_network(ctx: &mut AppContext, args: &[String]) -> Result
 pub(super) async fn cmd_block(ctx: &mut AppContext, args: &[String]) -> Result<()> {
     if args.is_empty() {
         bail!(
-            "Usage: webact-rs block <pattern> [pattern2...]\nPatterns: images, css, fonts, media, scripts, or URL substring\nUse \"block off\" to disable blocking."
+            "Usage: webact block <pattern> [pattern2...]\nPatterns: images, css, fonts, media, scripts, or URL substring\nUse \"block off\" to disable blocking."
         );
     }
     let mut state = ctx.load_session_state()?;
@@ -462,7 +462,7 @@ pub(super) async fn cmd_viewport(
 ) -> Result<()> {
     let width = width.ok_or_else(|| {
         anyhow!(
-            "Usage: webact-rs viewport <width> <height>\nPresets: mobile, tablet, desktop, iphone, ipad"
+            "Usage: webact viewport <width> <height>\nPresets: mobile, tablet, desktop, iphone, ipad"
         )
     })?;
     let (w, h, dpr, mobile) = match width.to_lowercase().as_str() {
@@ -520,7 +520,7 @@ pub(super) async fn cmd_frame(
 ) -> Result<()> {
     let frame_id_or_selector = frame_id_or_selector.ok_or_else(|| {
         anyhow!(
-            "Usage: webact-rs frame <frameId|selector>\nUse \"webact-rs frames\" to list frames.\nUse \"webact-rs frame main\" to return to main frame."
+            "Usage: webact frame <frameId|selector>\nUse \"webact frames\" to list frames.\nUse \"webact frame main\" to return to main frame."
         )
     })?;
     let mut state = ctx.load_session_state()?;

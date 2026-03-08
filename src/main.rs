@@ -1,4 +1,4 @@
-use webact_rs::*;
+use webact::*;
 
 #[tokio::main]
 async fn main() {
@@ -38,7 +38,7 @@ async fn run() -> Result<()> {
         let session_id = args
             .first()
             .cloned()
-            .context("Usage: webact-rs run <sessionId> [command args...]")?;
+            .context("Usage: webact run <sessionId> [command args...]")?;
         ctx.set_current_session(session_id);
         ctx.hydrate_connection_from_state()?;
 
@@ -58,7 +58,7 @@ async fn run() -> Result<()> {
 
     if command != "launch" && command != "connect" {
         ctx.auto_discover_last_session()
-            .context("No active session. Run: webact-rs launch")?;
+            .context("No active session. Run: webact launch")?;
     }
 
     commands::dispatch(&mut ctx, &command, &args).await?;

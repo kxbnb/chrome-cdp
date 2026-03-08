@@ -88,7 +88,7 @@ pub(crate) async fn cmd_clear(ctx: &mut AppContext, selector: &str) -> Result<()
 
 pub(crate) async fn cmd_keyboard(ctx: &mut AppContext, text: &str) -> Result<()> {
     if text.is_empty() {
-        bail!("Usage: webact-rs keyboard <text>");
+        bail!("Usage: webact keyboard <text>");
     }
     let mut cdp = open_cdp(ctx).await?;
     prepare_cdp(ctx, &mut cdp).await?;
@@ -112,7 +112,7 @@ pub(crate) async fn cmd_keyboard(ctx: &mut AppContext, text: &str) -> Result<()>
 
 pub(crate) async fn cmd_paste(ctx: &mut AppContext, text: &str) -> Result<()> {
     if text.is_empty() {
-        bail!("Usage: webact-rs paste <text>");
+        bail!("Usage: webact paste <text>");
     }
     let mut cdp = open_cdp(ctx).await?;
     prepare_cdp(ctx, &mut cdp).await?;
@@ -151,7 +151,7 @@ pub(crate) async fn cmd_select(
     values: &[String],
 ) -> Result<()> {
     if values.is_empty() {
-        bail!("Usage: webact-rs select <selector> <value> [value2...]");
+        bail!("Usage: webact select <selector> <value> [value2...]");
     }
     let mut cdp = open_cdp(ctx).await?;
     prepare_cdp(ctx, &mut cdp).await?;
@@ -210,7 +210,7 @@ pub(crate) async fn cmd_upload(
     file_paths: &[String],
 ) -> Result<()> {
     if file_paths.is_empty() {
-        bail!("Usage: webact-rs upload <selector> <file> [file2...]");
+        bail!("Usage: webact upload <selector> <file> [file2...]");
     }
     let resolved = file_paths
         .iter()
@@ -275,7 +275,7 @@ pub(crate) async fn cmd_dialog(
 ) -> Result<()> {
     let action = action.unwrap_or_default().to_lowercase();
     if !matches!(action.as_str(), "accept" | "dismiss") {
-        bail!("Usage: webact-rs dialog <accept|dismiss> [prompt-text]");
+        bail!("Usage: webact dialog <accept|dismiss> [prompt-text]");
     }
     let accept = action == "accept";
     let prompt_text = extra_args.join(" ");

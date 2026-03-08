@@ -16,7 +16,7 @@ pub async fn dispatch(ctx: &mut AppContext, command: &str, args: &[String]) -> R
         "connect" => cmd_connect(ctx).await,
         "navigate" => {
             if args.is_empty() {
-                bail!("Usage: webact-rs navigate <url>");
+                bail!("Usage: webact navigate <url>");
             }
             cmd_navigate(ctx, &args.join(" ")).await
         }
@@ -97,25 +97,25 @@ pub async fn dispatch(ctx: &mut AppContext, command: &str, args: &[String]) -> R
         "pdf" => cmd_pdf(ctx, args.first().map(String::as_str)).await,
         "click" => {
             if args.is_empty() {
-                bail!("Usage: webact-rs click <sel|x,y|--text>");
+                bail!("Usage: webact click <sel|x,y|--text>");
             }
             cmd_click_dispatch(ctx, args).await
         }
         "doubleclick" => {
             if args.is_empty() {
-                bail!("Usage: webact-rs doubleclick <sel|x,y|--text>");
+                bail!("Usage: webact doubleclick <sel|x,y|--text>");
             }
             cmd_double_click_dispatch(ctx, args).await
         }
         "rightclick" => {
             if args.is_empty() {
-                bail!("Usage: webact-rs rightclick <sel|x,y|--text>");
+                bail!("Usage: webact rightclick <sel|x,y|--text>");
             }
             cmd_right_click_dispatch(ctx, args).await
         }
         "hover" => {
             if args.is_empty() {
-                bail!("Usage: webact-rs hover <sel|x,y|--text>");
+                bail!("Usage: webact hover <sel|x,y|--text>");
             }
             cmd_hover_dispatch(ctx, args).await
         }
@@ -131,10 +131,10 @@ pub async fn dispatch(ctx: &mut AppContext, command: &str, args: &[String]) -> R
             let selector_arg = args
                 .first()
                 .cloned()
-                .context("Usage: webact-rs type <selector> <text>")?;
+                .context("Usage: webact type <selector> <text>")?;
             let text = args.iter().skip(1).cloned().collect::<Vec<_>>().join(" ");
             if text.is_empty() {
-                bail!("Usage: webact-rs type <selector> <text>");
+                bail!("Usage: webact type <selector> <text>");
             }
             let selector = resolve_selector(ctx, &selector_arg)?;
             cmd_type(ctx, &selector, &text).await
@@ -145,7 +145,7 @@ pub async fn dispatch(ctx: &mut AppContext, command: &str, args: &[String]) -> R
             let selector = args
                 .first()
                 .cloned()
-                .context("Usage: webact-rs select <selector> <value> [value2...]")?;
+                .context("Usage: webact select <selector> <value> [value2...]")?;
             let selector = resolve_selector(ctx, &selector)?;
             cmd_select(ctx, &selector, &args[1..]).await
         }
@@ -153,13 +153,13 @@ pub async fn dispatch(ctx: &mut AppContext, command: &str, args: &[String]) -> R
             let selector = args
                 .first()
                 .cloned()
-                .context("Usage: webact-rs upload <selector> <file> [file2...]")?;
+                .context("Usage: webact upload <selector> <file> [file2...]")?;
             let selector = resolve_selector(ctx, &selector)?;
             cmd_upload(ctx, &selector, &args[1..]).await
         }
         "drag" => {
             if args.len() < 2 {
-                bail!("Usage: webact-rs drag <from> <to>");
+                bail!("Usage: webact drag <from> <to>");
             }
             let from = resolve_selector(ctx, &args[0])?;
             let to = resolve_selector(ctx, &args[1])?;
@@ -170,7 +170,7 @@ pub async fn dispatch(ctx: &mut AppContext, command: &str, args: &[String]) -> R
             let selector = args
                 .first()
                 .cloned()
-                .context("Usage: webact-rs waitfor <selector> [timeout_ms]")?;
+                .context("Usage: webact waitfor <selector> [timeout_ms]")?;
             let selector = resolve_selector(ctx, &selector)?;
             cmd_wait_for(ctx, &selector, args.get(1).map(String::as_str)).await
         }
@@ -179,7 +179,7 @@ pub async fn dispatch(ctx: &mut AppContext, command: &str, args: &[String]) -> R
             let key = args
                 .first()
                 .cloned()
-                .context("Usage: webact-rs press <key>")?;
+                .context("Usage: webact press <key>")?;
             cmd_press(ctx, &key).await
         }
         "scroll" => cmd_scroll(ctx, args).await,
@@ -203,7 +203,7 @@ pub async fn dispatch(ctx: &mut AppContext, command: &str, args: &[String]) -> R
         "download" => cmd_download(ctx, args).await,
         "tabs" => cmd_tabs(ctx).await,
         "tab" => {
-            let id = args.first().cloned().context("Usage: webact-rs tab <id>")?;
+            let id = args.first().cloned().context("Usage: webact tab <id>")?;
             cmd_tab(ctx, &id).await
         }
         "newtab" => {
@@ -216,7 +216,7 @@ pub async fn dispatch(ctx: &mut AppContext, command: &str, args: &[String]) -> R
         "humanclick" => cmd_human_click_dispatch(ctx, args).await,
         "humantype" => {
             if args.len() < 2 {
-                bail!("Usage: webact-rs humantype <selector> <text>");
+                bail!("Usage: webact humantype <selector> <text>");
             }
             let selector = resolve_selector(ctx, &args[0])?;
             let text = args[1..].join(" ");

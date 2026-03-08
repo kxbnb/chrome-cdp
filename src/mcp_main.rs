@@ -1,4 +1,4 @@
-use webact_rs::*;
+use webact::*;
 
 use std::io::{self, BufRead, Write as IoWrite};
 use serde_json::Value;

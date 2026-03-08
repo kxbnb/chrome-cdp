@@ -59,7 +59,7 @@ pub(super) async fn cmd_download(ctx: &mut AppContext, args: &[String]) -> Resul
                 }
             }
         }
-        _ => bail!("Usage: webact-rs download [path <dir>|list]"),
+        _ => bail!("Usage: webact download [path <dir>|list]"),
     }
     Ok(())
 }
@@ -100,7 +100,7 @@ pub(super) async fn cmd_human_click_dispatch(ctx: &mut AppContext, args: &[Strin
     if args.first().map(String::as_str) == Some("--text") {
         let text = args[1..].join(" ");
         if text.is_empty() {
-            bail!("Usage: webact-rs humanclick --text <text>");
+            bail!("Usage: webact humanclick --text <text>");
         }
         let mut cdp = open_cdp(ctx).await?;
         prepare_cdp(ctx, &mut cdp).await?;
@@ -134,7 +134,7 @@ pub(super) async fn cmd_human_click(ctx: &mut AppContext, selector: &str) -> Res
 
 pub(super) async fn cmd_human_type(ctx: &mut AppContext, selector: &str, text: &str) -> Result<()> {
     if text.is_empty() {
-        bail!("Usage: webact-rs humantype <selector> <text>");
+        bail!("Usage: webact humantype <selector> <text>");
     }
     let mut cdp = open_cdp(ctx).await?;
     prepare_cdp(ctx, &mut cdp).await?;

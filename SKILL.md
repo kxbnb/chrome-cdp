@@ -9,7 +9,7 @@ Control Chrome directly via the Chrome DevTools Protocol. No Playwright, no MCP 
 
 ## How to Run Commands
 
-All commands use the `webact` CLI (the `webact-rs` binary). Use the binary on PATH.
+All commands use the `webact` CLI (the `webact` binary). Use the binary on PATH.
 
 ### Session Setup (once)
 

@@ -87,62 +87,62 @@ Each agent invocation gets its own **session** with isolated tab tracking. On `l
 
 ## CLI
 
-The `webact-rs` CLI wraps CDP:
+The `webact` CLI wraps CDP:
 
 ```bash
-webact-rs launch                  # Start browser, create session
-webact-rs navigate <url>          # Go to a URL
-webact-rs read [selector]         # Reader-mode text extraction (strips nav/sidebar/ads)
-webact-rs text [selector]         # Full page in reading order with interactive refs
-webact-rs dom [selector]          # Get compact DOM HTML
-webact-rs dom --tokens=N          # Truncate DOM to ~N tokens
-webact-rs axtree                  # Get accessibility tree (auto-capped at ~4k tokens)
-webact-rs axtree -i               # Interactive elements with ref numbers
-webact-rs axtree -i --diff        # Show only changes since last snapshot
-webact-rs observe                 # Interactive elements as ready-to-use commands
-webact-rs find <query>            # Find element by description
-webact-rs screenshot              # Capture screenshot
-webact-rs pdf [path]              # Save page as PDF
-webact-rs click <sel|x,y|--text>  # Click by selector, coordinates, or text match
-webact-rs doubleclick <sel>       # Double-click
-webact-rs rightclick <sel>        # Right-click (context menu)
-webact-rs hover <sel>             # Hover (tooltips/menus)
-webact-rs focus <selector>        # Focus an element without clicking
-webact-rs clear <selector>        # Clear an input field
-webact-rs type <selector> <text>  # Type into an input (focuses first)
-webact-rs keyboard <text>         # Type at current caret position (no selector)
-webact-rs paste <text>            # Paste via clipboard event (for rich editors)
-webact-rs select <sel> <value>    # Select option(s) from a dropdown
-webact-rs upload <sel> <file>     # Upload file(s) to a file input
-webact-rs humanclick <sel>        # Click with human-like mouse movement
-webact-rs humantype <sel> <text>  # Type with variable delays
-webact-rs drag <from> <to>        # Drag from one selector to another
-webact-rs dialog accept|dismiss   # Handle alert/confirm/prompt dialogs
-webact-rs waitfor <sel> [ms]      # Wait for element to appear (default 5s)
-webact-rs waitfornav [ms]         # Wait for navigation to complete (default 10s)
-webact-rs press <key>             # Press a key or combo (Enter, Ctrl+A, Meta+C)
-webact-rs scroll <target> [px]    # Scroll: up, down, top, bottom, or selector
-webact-rs eval <js>               # Run JavaScript in page context
-webact-rs cookies                 # List cookies for current page
-webact-rs cookies set <n> <v>     # Set a cookie
-webact-rs cookies delete <name>   # Delete a cookie
-webact-rs cookies clear           # Clear all cookies
-webact-rs console                 # Show recent console output
-webact-rs console errors          # Show only JS errors
-webact-rs block <pattern>         # Block requests: images, css, fonts, media, scripts, or URL
-webact-rs block --ads             # Block ads, analytics, and tracking (40+ patterns)
-webact-rs block off               # Disable request blocking
-webact-rs viewport <preset|w h>   # Set viewport (mobile, tablet, desktop, iphone, ipad)
-webact-rs frames                  # List all frames/iframes
-webact-rs frame <id|sel>          # Switch to a frame
-webact-rs frame main              # Return to main frame
-webact-rs tabs                    # List this session's tabs
-webact-rs tab <id>                # Switch to a session-owned tab
-webact-rs newtab [url]            # Open a new tab in this session
-webact-rs close                   # Close current tab
-webact-rs back / forward / reload # Navigation history
-webact-rs activate                # Bring browser window to front (macOS)
-webact-rs minimize                # Minimize browser window (macOS)
+webact launch                  # Start browser, create session
+webact navigate <url>          # Go to a URL
+webact read [selector]         # Reader-mode text extraction (strips nav/sidebar/ads)
+webact text [selector]         # Full page in reading order with interactive refs
+webact dom [selector]          # Get compact DOM HTML
+webact dom --tokens=N          # Truncate DOM to ~N tokens
+webact axtree                  # Get accessibility tree (auto-capped at ~4k tokens)
+webact axtree -i               # Interactive elements with ref numbers
+webact axtree -i --diff        # Show only changes since last snapshot
+webact observe                 # Interactive elements as ready-to-use commands
+webact find <query>            # Find element by description
+webact screenshot              # Capture screenshot
+webact pdf [path]              # Save page as PDF
+webact click <sel|x,y|--text>  # Click by selector, coordinates, or text match
+webact doubleclick <sel>       # Double-click
+webact rightclick <sel>        # Right-click (context menu)
+webact hover <sel>             # Hover (tooltips/menus)
+webact focus <selector>        # Focus an element without clicking
+webact clear <selector>        # Clear an input field
+webact type <selector> <text>  # Type into an input (focuses first)
+webact keyboard <text>         # Type at current caret position (no selector)
+webact paste <text>            # Paste via clipboard event (for rich editors)
+webact select <sel> <value>    # Select option(s) from a dropdown
+webact upload <sel> <file>     # Upload file(s) to a file input
+webact humanclick <sel>        # Click with human-like mouse movement
+webact humantype <sel> <text>  # Type with variable delays
+webact drag <from> <to>        # Drag from one selector to another
+webact dialog accept|dismiss   # Handle alert/confirm/prompt dialogs
+webact waitfor <sel> [ms]      # Wait for element to appear (default 5s)
+webact waitfornav [ms]         # Wait for navigation to complete (default 10s)
+webact press <key>             # Press a key or combo (Enter, Ctrl+A, Meta+C)
+webact scroll <target> [px]    # Scroll: up, down, top, bottom, or selector
+webact eval <js>               # Run JavaScript in page context
+webact cookies                 # List cookies for current page
+webact cookies set <n> <v>     # Set a cookie
+webact cookies delete <name>   # Delete a cookie
+webact cookies clear           # Clear all cookies
+webact console                 # Show recent console output
+webact console errors          # Show only JS errors
+webact block <pattern>         # Block requests: images, css, fonts, media, scripts, or URL
+webact block --ads             # Block ads, analytics, and tracking (40+ patterns)
+webact block off               # Disable request blocking
+webact viewport <preset|w h>   # Set viewport (mobile, tablet, desktop, iphone, ipad)
+webact frames                  # List all frames/iframes
+webact frame <id|sel>          # Switch to a frame
+webact frame main              # Return to main frame
+webact tabs                    # List this session's tabs
+webact tab <id>                # Switch to a session-owned tab
+webact newtab [url]            # Open a new tab in this session
+webact close                   # Close current tab
+webact back / forward / reload # Navigation history
+webact activate                # Bring browser window to front (macOS)
+webact minimize                # Minimize browser window (macOS)
 ```
 
 **Ref-based targeting:** After `axtree -i`, `observe`, or `text`, use the ref numbers directly as selectors - `click 1`, `type 3 hello`. Cached per URL.
@@ -196,7 +196,7 @@ Several tools give AI agents browser control on top of Playwright: [agent-browse
 git clone https://github.com/kilospark/webact.git
 cd webact
 cargo build --release
-# Binaries: target/release/webact-rs (CLI), target/release/webact-mcp (MCP server)
+# Binaries: target/release/webact (CLI), target/release/webact-mcp (MCP server)
 ```
 
 ## Requirements

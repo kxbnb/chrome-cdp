@@ -29,7 +29,7 @@ pub(crate) async fn cmd_click_dispatch(ctx: &mut AppContext, args: &[String]) ->
     if args.first().map(String::as_str) == Some("--text") {
         let text = args[1..].join(" ");
         if text.is_empty() {
-            bail!("Usage: webact-rs click --text <text>");
+            bail!("Usage: webact click --text <text>");
         }
         let mut cdp = open_cdp(ctx).await?;
         prepare_cdp(ctx, &mut cdp).await?;
@@ -78,7 +78,7 @@ pub(crate) async fn cmd_double_click_dispatch(ctx: &mut AppContext, args: &[Stri
     if args.first().map(String::as_str) == Some("--text") {
         let text = args[1..].join(" ");
         if text.is_empty() {
-            bail!("Usage: webact-rs doubleclick --text <text>");
+            bail!("Usage: webact doubleclick --text <text>");
         }
         let mut cdp = open_cdp(ctx).await?;
         prepare_cdp(ctx, &mut cdp).await?;
@@ -112,7 +112,7 @@ pub(crate) async fn cmd_right_click_dispatch(ctx: &mut AppContext, args: &[Strin
     if args.first().map(String::as_str) == Some("--text") {
         let text = args[1..].join(" ");
         if text.is_empty() {
-            bail!("Usage: webact-rs rightclick --text <text>");
+            bail!("Usage: webact rightclick --text <text>");
         }
         let mut cdp = open_cdp(ctx).await?;
         prepare_cdp(ctx, &mut cdp).await?;
@@ -150,7 +150,7 @@ pub(crate) async fn cmd_hover_dispatch(ctx: &mut AppContext, args: &[String]) ->
     if args.first().map(String::as_str) == Some("--text") {
         let text = args[1..].join(" ");
         if text.is_empty() {
-            bail!("Usage: webact-rs hover --text <text>");
+            bail!("Usage: webact hover --text <text>");
         }
         let mut cdp = open_cdp(ctx).await?;
         prepare_cdp(ctx, &mut cdp).await?;

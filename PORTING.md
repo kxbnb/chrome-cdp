@@ -1,6 +1,6 @@
-# webact-rs (experimental)
+# webact (experimental)
 
-`webact-rs` is a side-by-side Rust port of `skills/webact/webact.src.js`.
+`webact` is a side-by-side Rust port of `skills/webact/webact.src.js`.
 
 It is intentionally incremental: both implementations live in this repo so behavior can be compared command-by-command.
 
@@ -64,15 +64,15 @@ Implemented in Rust (CLI parity with JS command surface):
 
 The Rust port uses separate temp files from JS so both can run side-by-side:
 
-- Session pointer: `/tmp/webact-rs-last-session`
-- Session state: `/tmp/webact-rs-state-<sessionId>.json`
-- Command file: `/tmp/webact-rs-command-<sessionId>.json`
-- Chrome profile: `/tmp/webact-rs-chrome-profile`
+- Session pointer: `/tmp/webact-last-session`
+- Session state: `/tmp/webact-state-<sessionId>.json`
+- Command file: `/tmp/webact-command-<sessionId>.json`
+- Chrome profile: `/tmp/webact-chrome-profile`
 
 ## Build
 
 ```bash
-cd skills/webact-rs
+cd skills/webact
 cargo check
 cargo run -- --help
 ```
