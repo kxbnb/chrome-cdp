@@ -247,6 +247,21 @@ pub async fn dispatch(ctx: &mut AppContext, command: &str, args: &[String]) -> R
             }
             cmd_search(ctx, &query_parts.join(" "), engine.as_deref(), max_tokens).await
         }
+        "readurls" => {
+            let mut max_tokens = 0usize;
+            let mut urls = Vec::new();
+            for arg in args {
+                if let Some(raw) = arg.strip_prefix("--tokens=") {
+                    max_tokens = raw.parse::<usize>().unwrap_or(0);
+                } else {
+                    urls.push(arg.clone());
+                }
+            }
+            if urls.is_empty() {
+                bail!("Usage: webact readurls <url1> <url2> ...");
+            }
+            cmd_readurls(ctx, &urls, max_tokens).await
+        }
         "back" => cmd_back(ctx).await,
         "forward" => cmd_forward(ctx).await,
         "reload" => cmd_reload(ctx).await,

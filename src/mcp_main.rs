@@ -550,6 +550,21 @@ fn map_tool_args(command: &str, arguments: &Value) -> Vec<String> {
             }
             args
         }
+        // Readurls: urls array + optional --tokens=N
+        "readurls" => {
+            let mut args = Vec::new();
+            if let Some(tokens) = arguments.get("max_tokens").and_then(Value::as_u64) {
+                args.push(format!("--tokens={tokens}"));
+            }
+            if let Some(urls) = arguments.get("urls").and_then(Value::as_array) {
+                for url in urls {
+                    if let Some(u) = url.as_str() {
+                        args.push(u.to_string());
+                    }
+                }
+            }
+            args
+        }
         // Find: query
         "find" => {
             vec_from_opt_str(arguments, "query")

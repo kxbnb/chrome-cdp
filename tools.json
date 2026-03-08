@@ -516,5 +516,21 @@
       },
       "required": ["query"]
     }
+  },
+  {
+    "name": "webact_readurls",
+    "description": "Read multiple URLs in parallel. Opens each URL in a new tab, extracts readable content from each, and returns combined results. Closes tabs when done.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "urls": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "URLs to read"
+        },
+        "max_tokens": { "type": "integer", "description": "Approximate token limit per URL" }
+      },
+      "required": ["urls"]
+    }
   }
 ]

@@ -781,6 +781,83 @@ pub(super) async fn cmd_search(
     cmd_read(ctx, None, if max_tokens > 0 { max_tokens } else { 4000 }).await
 }
 
+pub(super) async fn cmd_readurls(
+    ctx: &mut AppContext,
+    urls: &[String],
+    max_tokens: usize,
+) -> Result<()> {
+    let effective_max = if max_tokens > 0 { max_tokens } else { 2000 };
+
+    // Open each URL in a new tab and collect tab IDs
+    let mut tab_ids: Vec<String> = Vec::new();
+    for url in urls {
+        let tab = create_new_tab(ctx, Some(url.as_str())).await?;
+        let mut state = ctx.load_session_state()?;
+        state.tabs.push(tab.id.clone());
+        ctx.save_session_state(&state)?;
+        tab_ids.push(tab.id.clone());
+    }
+
+    // Wait for all tabs to load
+    sleep(Duration::from_secs(3)).await;
+
+    // Save current active tab to restore later
+    let original_state = ctx.load_session_state()?;
+    let original_tab = original_state.active_tab_id.clone();
+
+    // Read each tab
+    let mut combined = String::new();
+    for (i, tab_id) in tab_ids.iter().enumerate() {
+        // Switch to tab
+        let mut state = ctx.load_session_state()?;
+        state.active_tab_id = Some(tab_id.clone());
+        ctx.save_session_state(&state)?;
+
+        // Wait for this tab's content
+        let mut cdp = open_cdp(ctx).await?;
+        prepare_cdp(ctx, &mut cdp).await?;
+        let _ = wait_for_ready_state_complete(&mut cdp, Duration::from_secs(10)).await;
+
+        // Run read extraction
+        let script = build_read_extract_script(None)?;
+        let context_id = get_frame_context_id(ctx, &mut cdp).await?;
+        let result = runtime_evaluate_with_context(&mut cdp, &script, true, false, context_id).await?;
+        let mut output = result
+            .pointer("/result/value")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string();
+
+        // Truncate per-URL
+        let char_budget = effective_max.saturating_mul(4);
+        if output.len() > char_budget {
+            let boundary = output.floor_char_boundary(char_budget);
+            output = format!("{}\n... (truncated)", &output[..boundary]);
+        }
+
+        combined.push_str(&format!("--- {} ---\n{}\n\n", urls[i], output));
+        cdp.close().await;
+    }
+
+    // Close all opened tabs
+    for tab_id in &tab_ids {
+        let _ = http_put_text(ctx, &format!("/json/close/{tab_id}")).await;
+        let mut state = ctx.load_session_state()?;
+        state.tabs.retain(|id| id != tab_id);
+        ctx.save_session_state(&state)?;
+    }
+
+    // Restore original active tab
+    if let Some(orig) = original_tab {
+        let mut state = ctx.load_session_state()?;
+        state.active_tab_id = Some(orig);
+        ctx.save_session_state(&state)?;
+    }
+
+    out!(ctx, "{}", combined.trim());
+    Ok(())
+}
+
 pub(super) async fn cmd_screenshot(ctx: &mut AppContext) -> Result<()> {
     let mut cdp = open_cdp(ctx).await?;
     prepare_cdp(ctx, &mut cdp).await?;
