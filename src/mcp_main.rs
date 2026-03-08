@@ -7,6 +7,12 @@ const TOOLS_JSON: &str = include_str!("../tools.json");
 const MCP_INSTRUCTIONS: &str = include_str!("../MCP_INSTRUCTIONS.md");
 
 fn main() {
+    let args: Vec<String> = std::env::args().collect();
+    if args.len() > 1 && matches!(args[1].as_str(), "-v" | "-V" | "--version") {
+        println!("{}", env!("CARGO_PKG_VERSION"));
+        return;
+    }
+
     let rt = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()

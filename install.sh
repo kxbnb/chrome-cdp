@@ -3,6 +3,7 @@ set -e
 
 REPO="kilospark/webact"
 BINARY="webact-mcp"
+CLI_BINARY="webact"
 
 # Use INSTALL_DIR if set, otherwise default to /usr/local/bin
 if [ -z "$INSTALL_DIR" ]; then
@@ -26,6 +27,7 @@ case "$ARCH" in
 esac
 
 ASSET="${BINARY}-${PLATFORM}-${ARCH_NAME}"
+CLI_ASSET="${CLI_BINARY}-${PLATFORM}-${ARCH_NAME}"
 
 # Get latest release tag if not specified
 if [ -z "$VERSION" ]; then
@@ -50,33 +52,41 @@ mkdir -p "$INSTALL_DIR"
 
 if [ -w "$INSTALL_DIR" ]; then
   mv "$TMPDIR/${ASSET}" "${INSTALL_DIR}/${BINARY}"
+  mv "$TMPDIR/${CLI_ASSET}" "${INSTALL_DIR}/${CLI_BINARY}"
 elif [ -e /dev/tty ]; then
   # Terminal available — prompt for sudo (works even when piped from curl)
   echo "Need admin access to install to ${INSTALL_DIR}."
   sudo mv "$TMPDIR/${ASSET}" "${INSTALL_DIR}/${BINARY}" < /dev/tty
+  sudo mv "$TMPDIR/${CLI_ASSET}" "${INSTALL_DIR}/${CLI_BINARY}" < /dev/tty
 else
   # No terminal at all (CI, cron, etc.) — fall back to user dir
   INSTALL_DIR="$HOME/.local/bin"
   mkdir -p "$INSTALL_DIR"
   mv "$TMPDIR/${ASSET}" "${INSTALL_DIR}/${BINARY}"
+  mv "$TMPDIR/${CLI_ASSET}" "${INSTALL_DIR}/${CLI_BINARY}"
 fi
 
-chmod +x "${INSTALL_DIR}/${BINARY}"
+chmod +x "${INSTALL_DIR}/${BINARY}" "${INSTALL_DIR}/${CLI_BINARY}"
 
 echo "Installed ${BINARY} to ${INSTALL_DIR}/${BINARY}"
+echo "Installed ${CLI_BINARY} to ${INSTALL_DIR}/${CLI_BINARY}"
 
 # Update stale copies in other known locations
 for other_dir in /usr/local/bin "$HOME/.local/bin"; do
-  if [ "$other_dir" != "$INSTALL_DIR" ] && [ -x "$other_dir/${BINARY}" ]; then
-    if [ -w "$other_dir" ]; then
-      cp "${INSTALL_DIR}/${BINARY}" "$other_dir/${BINARY}"
-      echo "Updated stale copy at ${other_dir}/${BINARY}"
-    elif sudo -n true 2>/dev/null; then
-      sudo cp "${INSTALL_DIR}/${BINARY}" "$other_dir/${BINARY}"
-      echo "Updated stale copy at ${other_dir}/${BINARY}"
-    else
-      echo "WARNING: stale copy at ${other_dir}/${BINARY} (update manually or remove)"
-    fi
+  if [ "$other_dir" != "$INSTALL_DIR" ]; then
+    for bin in "$BINARY" "$CLI_BINARY"; do
+      if [ -x "$other_dir/${bin}" ]; then
+        if [ -w "$other_dir" ]; then
+          cp "${INSTALL_DIR}/${bin}" "$other_dir/${bin}"
+          echo "Updated stale copy at ${other_dir}/${bin}"
+        elif sudo -n true 2>/dev/null; then
+          sudo cp "${INSTALL_DIR}/${bin}" "$other_dir/${bin}"
+          echo "Updated stale copy at ${other_dir}/${bin}"
+        else
+          echo "WARNING: stale copy at ${other_dir}/${bin} (update manually or remove)"
+        fi
+      fi
+    done
   fi
 done
 

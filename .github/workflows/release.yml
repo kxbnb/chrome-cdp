@@ -45,13 +45,16 @@ jobs:
           echo 'linker = "aarch64-linux-gnu-gcc"' >> ~/.cargo/config.toml
 
       - name: Build
-        run: cargo build --release --target ${{ matrix.target }} --bin webact-mcp
+        run: cargo build --release --target ${{ matrix.target }}
 
       - name: Package
         run: |
+          SUFFIX="${{ matrix.name }}"
+          SUFFIX="${SUFFIX#webact-mcp-}"
           cp target/${{ matrix.target }}/release/webact-mcp ${{ matrix.name }}
-          chmod +x ${{ matrix.name }}
-          tar czf ${{ matrix.name }}.tar.gz ${{ matrix.name }}
+          cp target/${{ matrix.target }}/release/webact "webact-${SUFFIX}"
+          chmod +x ${{ matrix.name }} "webact-${SUFFIX}"
+          tar czf ${{ matrix.name }}.tar.gz ${{ matrix.name }} "webact-${SUFFIX}"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
