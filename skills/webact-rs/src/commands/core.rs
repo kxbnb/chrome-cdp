@@ -612,7 +612,7 @@ pub(super) async fn cmd_screenshot(ctx: &mut AppContext) -> Result<()> {
         .unwrap_or_else(|| "default".to_string());
     let out = ctx
         .tmp_dir()
-        .join(format!("webact-rs-screenshot-{sid}.png"));
+        .join(format!("webact-screenshot-{sid}.png"));
     fs::write(&out, bytes).with_context(|| format!("failed writing {}", out.display()))?;
     out!(ctx, "Screenshot saved to {}", out.display());
     cdp.close().await;
@@ -644,7 +644,7 @@ pub(super) async fn cmd_pdf(ctx: &mut AppContext, output_path: Option<&str>) -> 
         .unwrap_or_else(|| "default".to_string());
     let out = output_path
         .map(PathBuf::from)
-        .unwrap_or_else(|| ctx.tmp_dir().join(format!("webact-rs-page-{sid}.pdf")));
+        .unwrap_or_else(|| ctx.tmp_dir().join(format!("webact-page-{sid}.pdf")));
     fs::write(&out, bytes).with_context(|| format!("failed writing {}", out.display()))?;
     out!(ctx, "PDF saved to {}", out.display());
     cdp.close().await;

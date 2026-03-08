@@ -71,21 +71,21 @@ impl AppContext {
     }
 
     pub fn last_session_file(&self) -> PathBuf {
-        self.tmp_dir().join("webact-rs-last-session")
+        self.tmp_dir().join("webact-last-session")
     }
 
     pub fn session_state_file(&self, session_id: &str) -> PathBuf {
         self.tmp_dir()
-            .join(format!("webact-rs-state-{session_id}.json"))
+            .join(format!("webact-state-{session_id}.json"))
     }
 
     pub fn command_file(&self, session_id: &str) -> PathBuf {
         self.tmp_dir()
-            .join(format!("webact-rs-command-{session_id}.json"))
+            .join(format!("webact-command-{session_id}.json"))
     }
 
     pub fn chrome_profile_dir(&self) -> PathBuf {
-        self.tmp_dir().join("webact-rs-chrome-profile")
+        self.tmp_dir().join("webact-chrome-profile")
     }
 
     pub fn chrome_port_file(&self) -> PathBuf {
@@ -93,15 +93,15 @@ impl AppContext {
     }
 
     pub fn action_cache_file(&self) -> PathBuf {
-        self.tmp_dir().join("webact-rs-action-cache.json")
+        self.tmp_dir().join("webact-action-cache.json")
     }
 
     pub fn tab_locks_file(&self) -> PathBuf {
-        self.tmp_dir().join("webact-rs-tab-locks.json")
+        self.tmp_dir().join("webact-tab-locks.json")
     }
 
     pub fn default_download_dir(&self) -> PathBuf {
-        self.tmp_dir().join("webact-rs-downloads")
+        self.tmp_dir().join("webact-downloads")
     }
 
     pub fn network_log_file(&self) -> PathBuf {
@@ -109,7 +109,7 @@ impl AppContext {
             .current_session_id
             .clone()
             .unwrap_or_else(|| "default".to_string());
-        self.tmp_dir().join(format!("webact-rs-network-{sid}.json"))
+        self.tmp_dir().join(format!("webact-network-{sid}.json"))
     }
 
     pub fn require_session_id(&self) -> Result<&str> {
@@ -921,7 +921,7 @@ pub fn check_tab_lock(ctx: &AppContext, tab_id: &str) -> Result<Option<TabLock>>
 
 pub fn print_help() {
     println!(
-        "webact-rs v{} - side-by-side Rust port of webact\n\nUsage: webact-rs <command> [args]\n\nCommands:\n  launch              Launch Chrome and start a session\n  connect             Attach to already-running Chrome (no launch)\n  run <sid>           Run command(s) from /tmp/webact-rs-command-<sid>.json\n  navigate <url>      Navigate to URL\n  back                Go back in history\n  forward             Go forward in history\n  reload              Reload the current page\n  dom [selector]      Get compact DOM (--tokens=N to limit output)\n  axtree [selector]   Get accessibility tree\n  axtree -i           Interactive elements with ref numbers\n  axtree -i --diff    Show only changes since last snapshot\n  observe             Show interactive elements as ready-to-use commands\n  find <query>        Find element by description\n  screenshot          Capture screenshot\n  pdf [path]          Save page as PDF\n  click <sel|x,y|--text> Click element, coordinates, or text match\n  doubleclick <sel|x,y|--text> Double-click\n  rightclick <sel|x,y|--text> Right-click\n  hover <sel|x,y|--text> Hover\n  focus <selector>    Focus an element without clicking\n  clear <selector>    Clear an input or contenteditable\n  type <sel> <text>   Type text into element\n  keyboard <text>     Type at current caret position\n  paste <text>        Paste text via ClipboardEvent\n  select <sel> <val>  Select option(s) from a <select>\n  upload <sel> <file> Upload file(s) to a file input\n  drag <from> <to>    Drag from one element to another\n  dialog <accept|dismiss> [text] Handle next dialog\n  waitfor <sel> [ms]  Wait for element to appear\n  waitfornav [ms]     Wait for navigation/readystate\n  press <key>         Press key or combo (Enter, Ctrl+A, Meta+C)\n  scroll <...>        Scroll page or element\n  eval <js>           Evaluate JavaScript\n  cookies ...         Manage cookies\n  console ...         Show/listen for console logs\n  network ...         Capture/show network requests\n  block ...           Configure request blocking\n  viewport ...        Set viewport preset or dimensions\n  frames              List frames/iframes\n  frame <id|sel>      Switch frame (frame main to reset)\n  download ...        Configure/list downloads\n  tabs                List tabs owned by this session\n  tab <id>            Switch to a session-owned tab\n  newtab [url]        Open a new tab in this session\n  close               Close current tab\n  activate            Bring browser window to front (macOS)\n  minimize            Minimize browser window (macOS)\n  humanclick <...>    Human-like click movement/timing\n  humantype <...>     Human-like typing\n  lock [seconds]      Lock active tab for exclusive access\n  unlock              Release tab lock",
+        "webact-rs v{} - side-by-side Rust port of webact\n\nUsage: webact-rs <command> [args]\n\nCommands:\n  launch              Launch Chrome and start a session\n  connect             Attach to already-running Chrome (no launch)\n  run <sid>           Run command(s) from /tmp/webact-command-<sid>.json\n  navigate <url>      Navigate to URL\n  back                Go back in history\n  forward             Go forward in history\n  reload              Reload the current page\n  dom [selector]      Get compact DOM (--tokens=N to limit output)\n  axtree [selector]   Get accessibility tree\n  axtree -i           Interactive elements with ref numbers\n  axtree -i --diff    Show only changes since last snapshot\n  observe             Show interactive elements as ready-to-use commands\n  find <query>        Find element by description\n  screenshot          Capture screenshot\n  pdf [path]          Save page as PDF\n  click <sel|x,y|--text> Click element, coordinates, or text match\n  doubleclick <sel|x,y|--text> Double-click\n  rightclick <sel|x,y|--text> Right-click\n  hover <sel|x,y|--text> Hover\n  focus <selector>    Focus an element without clicking\n  clear <selector>    Clear an input or contenteditable\n  type <sel> <text>   Type text into element\n  keyboard <text>     Type at current caret position\n  paste <text>        Paste text via ClipboardEvent\n  select <sel> <val>  Select option(s) from a <select>\n  upload <sel> <file> Upload file(s) to a file input\n  drag <from> <to>    Drag from one element to another\n  dialog <accept|dismiss> [text] Handle next dialog\n  waitfor <sel> [ms]  Wait for element to appear\n  waitfornav [ms]     Wait for navigation/readystate\n  press <key>         Press key or combo (Enter, Ctrl+A, Meta+C)\n  scroll <...>        Scroll page or element\n  eval <js>           Evaluate JavaScript\n  cookies ...         Manage cookies\n  console ...         Show/listen for console logs\n  network ...         Capture/show network requests\n  block ...           Configure request blocking\n  viewport ...        Set viewport preset or dimensions\n  frames              List frames/iframes\n  frame <id|sel>      Switch frame (frame main to reset)\n  download ...        Configure/list downloads\n  tabs                List tabs owned by this session\n  tab <id>            Switch to a session-owned tab\n  newtab [url]        Open a new tab in this session\n  close               Close current tab\n  activate            Bring browser window to front (macOS)\n  minimize            Minimize browser window (macOS)\n  humanclick <...>    Human-like click movement/timing\n  humantype <...>     Human-like typing\n  lock [seconds]      Lock active tab for exclusive access\n  unlock              Release tab lock",
         env!("CARGO_PKG_VERSION")
     );
 }
