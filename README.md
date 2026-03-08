@@ -91,7 +91,7 @@ The `webact` CLI wraps CDP:
 
 ```bash
 webact launch                  # Start browser, create session
-webact navigate <url>          # Go to a URL
+webact navigate <url>          # Go to a URL (auto-dismisses cookie banners)
 webact read [selector]         # Reader-mode text extraction (strips nav/sidebar/ads)
 webact text [selector]         # Full page in reading order with interactive refs
 webact dom [selector]          # Get compact DOM HTML
@@ -140,6 +140,8 @@ webact tabs                    # List this session's tabs
 webact tab <id>                # Switch to a session-owned tab
 webact newtab [url]            # Open a new tab in this session
 webact close                   # Close current tab
+webact search <query>          # Search the web (Google, Bing, DuckDuckGo, or custom)
+webact readurls <url1> <url2>  # Read multiple URLs in parallel
 webact back / forward / reload # Navigation history
 webact activate                # Bring browser window to front (macOS)
 webact minimize                # Minimize browser window (macOS)
