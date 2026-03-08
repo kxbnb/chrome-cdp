@@ -171,8 +171,18 @@ if [ "$PLATFORM" = "linux" ]; then
   add_mcp_config "$HOME/.codeium/windsurf/mcp_config.json" "Windsurf"
 fi
 
-# Cross-platform
-add_mcp_config "$HOME/.config/codex/mcp.json" "Codex"
+# Codex (uses CLI, not a config file)
+if command -v codex >/dev/null 2>&1; then
+  if codex mcp list 2>/dev/null | grep -q 'webact'; then
+    echo "  Codex: already configured"
+    CONFIGURED="${CONFIGURED}Codex, "
+  else
+    codex mcp add webact -- "$BINARY_PATH" 2>/dev/null && {
+      echo "  Codex: configured"
+      CONFIGURED="${CONFIGURED}Codex, "
+    } || echo "  Codex: failed to configure (try: codex mcp add webact -- $BINARY_PATH)"
+  fi
+fi
 
 if [ -z "$CONFIGURED" ]; then
   echo "  No MCP clients detected. Add manually to your client config:"
