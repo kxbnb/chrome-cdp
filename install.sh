@@ -7,7 +7,7 @@ BINARY="webact-mcp"
 # Use INSTALL_DIR if set, otherwise try /usr/local/bin, fall back to ~/.local/bin
 if [ -n "$INSTALL_DIR" ]; then
   : # user specified
-elif [ -w /usr/local/bin ] || command -v sudo >/dev/null 2>&1; then
+elif [ -w /usr/local/bin ]; then
   INSTALL_DIR="/usr/local/bin"
 else
   INSTALL_DIR="$HOME/.local/bin"
@@ -54,8 +54,13 @@ mkdir -p "$INSTALL_DIR"
 
 if [ -w "$INSTALL_DIR" ]; then
   mv "$TMPDIR/${ASSET}" "${INSTALL_DIR}/${BINARY}"
-else
+elif sudo -n true 2>/dev/null; then
   sudo mv "$TMPDIR/${ASSET}" "${INSTALL_DIR}/${BINARY}"
+else
+  # sudo needs a password but no TTY (e.g. piped from curl) — fall back
+  INSTALL_DIR="$HOME/.local/bin"
+  mkdir -p "$INSTALL_DIR"
+  mv "$TMPDIR/${ASSET}" "${INSTALL_DIR}/${BINARY}"
 fi
 
 chmod +x "${INSTALL_DIR}/${BINARY}"
