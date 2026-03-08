@@ -3,7 +3,15 @@ set -e
 
 REPO="kilospark/webact"
 BINARY="webact-mcp"
-INSTALL_DIR="${INSTALL_DIR:-/usr/local/bin}"
+
+# Use INSTALL_DIR if set, otherwise try /usr/local/bin, fall back to ~/.local/bin
+if [ -n "$INSTALL_DIR" ]; then
+  : # user specified
+elif [ -w /usr/local/bin ] || command -v sudo >/dev/null 2>&1; then
+  INSTALL_DIR="/usr/local/bin"
+else
+  INSTALL_DIR="$HOME/.local/bin"
+fi
 
 # Detect OS and architecture
 OS="$(uname -s)"
@@ -42,6 +50,8 @@ trap 'rm -rf "$TMPDIR"' EXIT
 
 curl -fsSL "$URL" | tar xz -C "$TMPDIR"
 
+mkdir -p "$INSTALL_DIR"
+
 if [ -w "$INSTALL_DIR" ]; then
   mv "$TMPDIR/${ASSET}" "${INSTALL_DIR}/${BINARY}"
 else
@@ -51,6 +61,14 @@ fi
 chmod +x "${INSTALL_DIR}/${BINARY}"
 
 echo "Installed ${BINARY} to ${INSTALL_DIR}/${BINARY}"
+
+# Warn if install dir is not in PATH
+case ":$PATH:" in
+  *":${INSTALL_DIR}:"*) ;;
+  *) echo "WARNING: ${INSTALL_DIR} is not in your PATH. Add it with:"
+     echo "  export PATH=\"${INSTALL_DIR}:\$PATH\""
+     echo "Then restart your shell or add it to ~/.bashrc / ~/.zshrc" ;;
+esac
 
 # --- Configure MCP clients ---
 
