@@ -1,33 +1,44 @@
 # webact - token-efficient browser control for AI agents
 
-A highly token efficient agent skill that lets you control any Chromium-based browser via the Chrome DevTools Protocol. Works with Claude Code, Cursor, Codex, Windsurf, Cline, Copilot, OpenCode, Goose, and any tool supporting the [Agent Skills](https://agentskills.io) spec. Give the agent a goal - "check my inbox", "top stories on Hacker News", "search for flights" - and it drives the browser to get it done.
+A highly token efficient browser control tool that lets you control any Chromium-based browser via the Chrome DevTools Protocol. Ships as a Rust binary with zero runtime dependencies. Works as an MCP server with Claude Code, Claude Desktop, Cursor, Codex, Windsurf, Cline, ChatGPT Desktop, and any MCP-compatible client. Also works as a CLI skill with Claude Code, Cursor, Codex, Windsurf, Cline, Copilot, OpenCode, Goose, and any tool supporting the [Agent Skills](https://agentskills.io) spec.
 
 No Playwright, no browser automation frameworks. Raw CDP over WebSocket.
 
 ## Install
 
+### MCP Server (recommended)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/kilospark/webact/main/install.sh | sh
+```
+
+Downloads the `webact-mcp` binary and auto-configures any detected MCP clients (Claude Desktop, Claude Code, ChatGPT Desktop, Cursor, Windsurf, Cline, Codex).
+
+### Agent Skill
+
 ```bash
 npx skills add kilospark/webact
 ```
 
-Already installed? Update to latest:
-
-```bash
-npx skills update
-```
-
 Works with Claude Code, Cursor, Codex, Windsurf, Cline, Copilot, OpenCode, Goose, and [40+ agents](https://github.com/vercel-labs/skills). Powered by Vercel's [skills](https://github.com/vercel-labs/skills) CLI.
 
-> **Note (Codex):** Codex's sandbox blocks local networking by default. To allow CDP connections, add a rule to allow `node` access to `localhost` on the CDP port (auto-discovered at launch), or run with `--full-auto` mode.
+### Manual MCP config
 
-### Manual
-
-```bash
-git clone https://github.com/kilospark/webact.git /tmp/webact
-cp -r /tmp/webact/skills/webact .agents/skills/webact
+```json
+{
+  "mcpServers": {
+    "webact": {
+      "command": "webact-mcp"
+    }
+  }
+}
 ```
 
-Any tool supporting the [Agent Skills spec](https://agentskills.io) will auto-discover it from `.agents/skills/`.
+For Claude Code:
+
+```bash
+claude mcp add webact webact-mcp
+```
 
 ## Usage
 
@@ -47,25 +58,25 @@ The agent follows a **perceive-act loop**:
 
 1. **Plan** - break the goal into steps
 2. **Act** - navigate, click, type via CDP commands
-3. **Perceive** - read the DOM to see what happened
+3. **Perceive** - read the page to see what happened
 4. **Decide** - adapt, continue, or report results
 5. **Repeat** - until the goal is done
 
-DOM is read first for token efficiency. Screenshots are a fallback for visual-heavy pages.
+## Reading the page
 
-## Rust port (experimental)
+webact provides multiple ways to read page content, each optimized for different needs:
 
-An incremental side-by-side Rust port lives in [`skills/webact-rs`](skills/webact-rs).
+| Need | Tool | Output |
+|------|------|--------|
+| Page content (articles, docs) | `read` | Clean text, no UI chrome |
+| Full page + interaction targets | `text` | Text + numbered refs |
+| Interactive elements only | `axtree -i` | Flat list of clickable/typeable elements |
+| HTML structure/selectors | `dom` | Compact HTML |
+| Visual layout | `screenshot` | PNG image |
 
-- JS remains the primary implementation in `skills/webact/webact.src.js`
-- Rust now implements the full command surface for side-by-side parity testing (see tracker for known behavioral differences)
-- Command parity tracker: [`skills/webact-rs/PORTING.md`](skills/webact-rs/PORTING.md)
+**`read`** strips navigation, sidebars, ads, and returns just the main content as clean text with headings, lists, and paragraphs. Best for articles, docs, search results, and information retrieval.
 
-Current code layout after monolith split:
-- JS runtime helpers: `skills/webact/lib/browser.js`, `skills/webact/lib/state.js`, `skills/webact/lib/cdp.js`
-- JS command entrypoint: `skills/webact/webact.src.js`
-- Rust orchestration/runtime: `skills/webact-rs/src/main.rs`
-- Rust command handlers: `skills/webact-rs/src/commands.rs`
+**`text`** shows the full page in reading order, interleaving static text with interactive elements (numbered refs). Like a screen reader view. Generates a ref map so you can immediately use `click 12` or `type 3 hello`.
 
 ## Sessions
 
@@ -73,82 +84,68 @@ Each agent invocation gets its own **session** with isolated tab tracking. On `l
 
 - Multiple agents can work side by side in the same Chrome instance
 - Each session only sees and controls its own tabs
-- Commands are passed via a JSON file, so the bash command stays the same throughout a session (only needs one user approval)
 
 ## CLI
 
-The `webact` CLI wraps CDP:
+The `webact-rs` CLI wraps CDP:
 
 ```bash
-webact launch                  # Start browser, create session
-webact connect                 # Attach to already-running Chrome (no launch)
-webact navigate <url>          # Go to a URL
-webact back                    # Go back in history
-webact forward                 # Go forward in history
-webact reload                  # Reload the current page
-webact dom                     # Get compact DOM (~4000 chars)
-webact dom <selector>          # Get DOM subtree
-webact dom --full              # Full DOM without truncation
-webact dom --tokens=N          # Truncate DOM to ~N tokens
-webact axtree                  # Get accessibility tree (semantic roles + names)
-webact axtree -i               # Interactive elements with ref numbers
-webact axtree -i --diff        # Show only changes since last snapshot
-webact axtree -i --tokens=N    # Truncate output to ~N tokens
-webact axtree <selector>       # Get AX tree for a specific element
-webact observe                 # Show interactive elements as ready-to-use commands
-webact find <query>            # Find element by description (e.g. find "login button")
-webact screenshot              # Capture screenshot
-webact pdf [path]              # Save page as PDF
-webact click <sel|x,y|--text>  # Click by selector, coordinates, or text match
-webact doubleclick <sel|x,y|--text>  # Double-click
-webact rightclick <sel|x,y|--text>   # Right-click (context menu)
-webact hover <sel|x,y|--text>        # Hover (tooltips/menus)
-webact focus <selector>        # Focus an element without clicking
-webact clear <selector>        # Clear an input field or contenteditable
-webact type <selector> <text>  # Type into an input (focuses first)
-webact keyboard <text>         # Type at current caret position (no selector)
-webact paste <text>            # Paste via clipboard event (for rich editors)
-webact select <sel> <value>    # Select option(s) from a <select> dropdown
-webact upload <sel> <file>     # Upload file(s) to a file input
-webact humanclick <sel|x,y>    # Click with human-like mouse movement + timing
-webact humantype <sel> <text>  # Type with variable delays, occasional pauses
-webact drag <from> <to>        # Drag from one selector to another
-webact dialog accept|dismiss   # Handle alert/confirm/prompt dialogs
-webact waitfor <sel> [ms]      # Wait for element to appear (default 5s)
-webact waitfornav [ms]         # Wait for navigation to complete (default 10s)
-webact press <key>             # Press a key or combo (Enter, Ctrl+A, Meta+C)
-webact scroll <target> [px]    # Scroll: up, down, top, bottom, or selector
-webact eval <js>               # Run JavaScript in page context
-webact cookies                 # List cookies for current page
-webact cookies set <n> <v>     # Set a cookie
-webact cookies delete <name>   # Delete a cookie
-webact cookies clear           # Clear all cookies
-webact console                 # Show recent console output
-webact console errors          # Show only JS errors
-webact console listen          # Real-time console output (until Ctrl+C)
-webact block <pattern>         # Block requests: images, css, fonts, media, scripts, or URL
-webact block --ads             # Block ads, analytics, and tracking (40+ patterns)
-webact block off               # Disable request blocking
-webact viewport <preset|w h>   # Set viewport (mobile, tablet, desktop, iphone, ipad)
-webact frames                  # List all frames/iframes
-webact frame <id|sel>          # Switch to a frame
-webact frame main              # Return to main frame
-webact download path /tmp/dl   # Set download directory
-webact download list           # List downloaded files
-webact tabs                    # List this session's tabs
-webact tab <id>                # Switch to a session-owned tab
-webact newtab [url]            # Open a new tab in this session
-webact close                   # Close current tab
-webact lock [ttl]              # Lock current tab to this session (default 300s)
-webact unlock                  # Unlock current tab
-webact activate                # Bring browser window to front (macOS)
-webact minimize                # Minimize browser window (macOS)
-webact run <sessionId>         # Run command from session command file
+webact-rs launch                  # Start browser, create session
+webact-rs navigate <url>          # Go to a URL
+webact-rs read [selector]         # Reader-mode text extraction (strips nav/sidebar/ads)
+webact-rs text [selector]         # Full page in reading order with interactive refs
+webact-rs dom [selector]          # Get compact DOM HTML
+webact-rs dom --tokens=N          # Truncate DOM to ~N tokens
+webact-rs axtree                  # Get accessibility tree (auto-capped at ~4k tokens)
+webact-rs axtree -i               # Interactive elements with ref numbers
+webact-rs axtree -i --diff        # Show only changes since last snapshot
+webact-rs observe                 # Interactive elements as ready-to-use commands
+webact-rs find <query>            # Find element by description
+webact-rs screenshot              # Capture screenshot
+webact-rs pdf [path]              # Save page as PDF
+webact-rs click <sel|x,y|--text>  # Click by selector, coordinates, or text match
+webact-rs doubleclick <sel>       # Double-click
+webact-rs rightclick <sel>        # Right-click (context menu)
+webact-rs hover <sel>             # Hover (tooltips/menus)
+webact-rs focus <selector>        # Focus an element without clicking
+webact-rs clear <selector>        # Clear an input field
+webact-rs type <selector> <text>  # Type into an input (focuses first)
+webact-rs keyboard <text>         # Type at current caret position (no selector)
+webact-rs paste <text>            # Paste via clipboard event (for rich editors)
+webact-rs select <sel> <value>    # Select option(s) from a dropdown
+webact-rs upload <sel> <file>     # Upload file(s) to a file input
+webact-rs humanclick <sel>        # Click with human-like mouse movement
+webact-rs humantype <sel> <text>  # Type with variable delays
+webact-rs drag <from> <to>        # Drag from one selector to another
+webact-rs dialog accept|dismiss   # Handle alert/confirm/prompt dialogs
+webact-rs waitfor <sel> [ms]      # Wait for element to appear (default 5s)
+webact-rs waitfornav [ms]         # Wait for navigation to complete (default 10s)
+webact-rs press <key>             # Press a key or combo (Enter, Ctrl+A, Meta+C)
+webact-rs scroll <target> [px]    # Scroll: up, down, top, bottom, or selector
+webact-rs eval <js>               # Run JavaScript in page context
+webact-rs cookies                 # List cookies for current page
+webact-rs cookies set <n> <v>     # Set a cookie
+webact-rs cookies delete <name>   # Delete a cookie
+webact-rs cookies clear           # Clear all cookies
+webact-rs console                 # Show recent console output
+webact-rs console errors          # Show only JS errors
+webact-rs block <pattern>         # Block requests: images, css, fonts, media, scripts, or URL
+webact-rs block --ads             # Block ads, analytics, and tracking (40+ patterns)
+webact-rs block off               # Disable request blocking
+webact-rs viewport <preset|w h>   # Set viewport (mobile, tablet, desktop, iphone, ipad)
+webact-rs frames                  # List all frames/iframes
+webact-rs frame <id|sel>          # Switch to a frame
+webact-rs frame main              # Return to main frame
+webact-rs tabs                    # List this session's tabs
+webact-rs tab <id>                # Switch to a session-owned tab
+webact-rs newtab [url]            # Open a new tab in this session
+webact-rs close                   # Close current tab
+webact-rs back / forward / reload # Navigation history
+webact-rs activate                # Bring browser window to front (macOS)
+webact-rs minimize                # Minimize browser window (macOS)
 ```
 
-**Ref-based targeting:** After `axtree -i` or `observe`, use the ref numbers directly as selectors - `click 1`, `type 3 hello`. Cached per URL.
-
-The agent workflow: `launch` prints a session ID and command file path. Write command JSON to that file, then `webact run <sessionId>`.
+**Ref-based targeting:** After `axtree -i`, `observe`, or `text`, use the ref numbers directly as selectors - `click 1`, `type 3 hello`. Cached per URL.
 
 ## Token Stats
 
@@ -156,114 +153,58 @@ Each command is designed to minimize token usage while giving the agent enough c
 
 | Command | webact output | Playwright equivalent | Savings |
 |---------|--------------|----------------------|---------|
-| **brief** (auto) | ~200 chars | No equivalent - `page.content()` returns ~50k–500k chars of raw HTML | **~99%** |
-| **dom** | ~1k–4k chars (compact, truncated) | `page.content()` ~50k–500k chars (full raw HTML) | **~95%** |
-| **dom \<selector\>** | ~200–4k chars (scoped subtree) | `locator.innerHTML()` ~1k–50k chars (raw HTML subtree) | **~80%** |
-| **axtree -i** | ~500–1.5k chars (flat numbered list) | `page.accessibility.snapshot()` ~10k–50k chars (full JSON tree) | **~95%** |
-| **axtree** | ~2k–6k chars (semantic tree) | `page.accessibility.snapshot()` ~10k–50k chars (full JSON tree) | **~80%** |
-| **observe** | ~500–1.5k chars (ready-to-use commands) | No equivalent | - |
-| **screenshot** | ~100k+ (base64 PNG) | `page.screenshot()` ~100k+ (same) | same |
-| **console** | 200 chars/entry (truncated) | `page.on('console')` unbounded per entry | **~60%** |
-| **cookies** | 60 chars/value (truncated) | `context.cookies()` full JSON objects (~200–500 chars/cookie) | **~70%** |
-| **eval** | varies | `page.evaluate()` same | same |
+| **brief** (auto) | ~200 chars | No equivalent - `page.content()` returns ~50k-500k chars | **~99%** |
+| **read** | ~1k-4k chars (clean text) | No equivalent - manual extraction needed | - |
+| **text** | ~1k-4k chars (text + refs) | `page.accessibility.snapshot()` ~10k-50k chars | **~90%** |
+| **dom** | ~1k-4k chars (compact HTML) | `page.content()` ~50k-500k chars (full raw HTML) | **~95%** |
+| **axtree -i** | ~500-1.5k chars (flat list) | `page.accessibility.snapshot()` ~10k-50k chars | **~95%** |
 
 **Recommended flow for minimal token usage:**
 1. State-changing commands auto-print the **brief** (~200 chars) - often enough to decide next step
-2. Need to find a specific element? Use **axtree -i** (~500 tokens) over **dom** (~4,000 chars)
-3. Use **dom \<selector\>** to scope to a subtree instead of reading the whole page
-4. Reserve **screenshot** for visual-heavy pages where DOM/axtree are insufficient
+2. Need to read page content? Use **read** - strips UI chrome, returns clean text
+3. Need to see everything + interact? Use **text** - full page with refs
+4. Need just interactive elements? Use **axtree -i** (~500 tokens)
+5. Need HTML structure? Use **dom** with a selector to scope
+6. Reserve **screenshot** for visual-heavy pages where text extraction is insufficient
 
 ## vs. Playwright-based tools
 
-Several tools give AI agents browser control on top of Playwright: [agent-browser](https://github.com/vercel-labs/agent-browser) (Vercel), [Playwright MCP](https://github.com/microsoft/playwright-mcp) (Microsoft), [Stagehand](https://github.com/browserbase/stagehand) (Browserbase), and [Browser Use](https://github.com/browser-use/browser-use). They share the same Playwright foundation - bundled Chromium, accessibility tree snapshots, ~200 MB+ install. Comparison measured against agent-browser; output sizes are representative of the family.
+Several tools give AI agents browser control on top of Playwright: [agent-browser](https://github.com/vercel-labs/agent-browser) (Vercel), [Playwright MCP](https://github.com/microsoft/playwright-mcp) (Microsoft), [Stagehand](https://github.com/browserbase/stagehand) (Browserbase), and [Browser Use](https://github.com/browser-use/browser-use).
 
 |  | **webact** | **Playwright-based tools** |
 |--|-----------|--------------------------|
-| **What it is** | Browser CLI for agents - raw CDP, single file | CLI / MCP server / SDK wrapping Playwright |
-| **Architecture** | CLI connects directly to Chrome via CDP WebSocket | CLI/SDK &rarr; IPC &rarr; Playwright &rarr; bundled Chromium |
-| **Install size** | 228 KB on disk (bundled CLI, zero deps) | ~200 MB+ (node_modules + Chromium download) |
-| **Setup** | `npm install -g` + skill registration | npm install + browser download |
+| **What it is** | Rust binary - MCP server + CLI | CLI / MCP server / SDK wrapping Playwright |
+| **Architecture** | Direct CDP WebSocket to your Chrome | CLI/SDK &rarr; IPC &rarr; Playwright &rarr; bundled Chromium |
+| **Install size** | Single binary, zero deps | ~200 MB+ (node_modules + Chromium download) |
 | **Uses your browser** | Yes - your Chrome, your cookies, your logins | No - launches bundled Chromium with clean state |
-| **User agent** | Your real Chrome user agent - no bot fingerprint | Modified Playwright/Chromium UA - detectable by sites |
+| **User agent** | Your real Chrome user agent | Modified Playwright/Chromium UA - detectable |
 | **Headed mode** | Always - you see what the agent sees | Headless by default |
-| **Auth / logins** | Already signed in - uses your real browser session | Requires auth setup, state persistence, or login flows |
 
 ### Token comparison (same pages, measured output)
 
-Tested on the same pages at the same time using agent-browser (representative of Playwright-based output). Chars shown; divide by ~4 for approximate tokens.
+| Scenario | **webact** | **Playwright-based*** | Savings |
+|----------|-----------|------------------|---------|
+| **Navigate + see page** | `navigate` = 186 chars | `open` + `snapshot -i` = 7,974 chars | **98%** |
+| **Navigate + see page** | `navigate` = 756 chars | `open` + `snapshot -i` = 8,486 chars | **91%** |
+| **Full page read** | `read` = ~3,000 chars | No equivalent (manual extraction) | - |
+| **Full page + refs** | `text` = ~4,000 chars | `snapshot` = 104,890 chars | **96%** |
+| **Interactive elements** | `axtree -i` = 5,997 chars | `snapshot -i` = 7,901 chars | **24%** |
 
-| Scenario | **webact** | **Playwright-based*** | Savings | Page |
-|----------|-----------|------------------|---------|------|
-| **Navigate + see page** | `navigate` = 186 chars | `open` + `snapshot -i` = 7,974 chars | **98%** | Hacker News |
-| **Navigate + see page** | `navigate` = 756 chars | `open` + `snapshot -i` = 8,486 chars | **91%** | GitHub repo |
-| **Full page read** | `dom` = 4,051 chars | `snapshot` = 46,565 chars | **91%** | Hacker News |
-| **Full page read** | `dom` = 4,049 chars | `snapshot` = 104,890 chars | **96%** | GitHub repo |
-| **Interactive elements** | `axtree -i` = 5,997 chars | `snapshot -i` = 7,901 chars | **24%** | Hacker News |
-| **Interactive elements** | `axtree -i` = 6,019 chars | `snapshot -i` = 8,337 chars | **28%** | GitHub repo |
-
-webact's `navigate` auto-prints a brief with page summary, inputs, links, and element counts - enough to decide the next step in one call. agent-browser's `open` only prints URL and title, so the agent always needs a follow-up `snapshot` to see the page.
-
-For full page reading, webact's `dom` is truncated to ~4k chars by default. agent-browser's `snapshot` returns the full accessibility tree (46k-105k chars). On a GitHub repo page, that's **26x** more tokens.
-
-For interactive elements, both tools offer a flat list with refs. webact's `axtree -i` is ~25-28% smaller than agent-browser's `snapshot -i`.
-
-**When to use webact:** You want zero-setup browser control using your actual logged-in Chrome, with minimal token overhead. One file, no downloads.
-
-**When to use Playwright-based tools:** You need headless Chromium, cloud browser infra, device emulation, network mocking, cross-browser support, or iOS simulator. You're OK with the install size and Playwright dependency.
-
-## MCP Server
-
-webact also ships as an MCP server for Claude Desktop, Claude Code, ChatGPT Desktop, Cursor, Windsurf, Cline, Codex, and other MCP-compatible clients. Each webact command is exposed as an individual tool with full JSON schema.
-
-### Install (Rust binary — no Node.js required)
+## Build from source
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/kilospark/webact/main/install.sh | sh
-```
-
-Downloads the `webact-mcp` binary and auto-configures any detected MCP clients (Claude Desktop, Claude Code, ChatGPT Desktop, Cursor, Windsurf, Cline, Codex).
-
-### Install (Node.js)
-
-If you already have Node.js, add directly to your MCP client config:
-
-```json
-{
-  "mcpServers": {
-    "webact": {
-      "command": "npx",
-      "args": ["-y", "@kilospark/webact"]
-    }
-  }
-}
-```
-
-### Manual config
-
-If you installed via the curl script but need to add to a client manually:
-
-```json
-{
-  "mcpServers": {
-    "webact": {
-      "command": "webact-mcp"
-    }
-  }
-}
-```
-
-For Claude Code:
-
-```bash
-claude mcp add webact webact-mcp
+git clone https://github.com/kilospark/webact.git
+cd webact
+cargo build --release
+# Binaries: target/release/webact-rs (CLI), target/release/webact-mcp (MCP server)
 ```
 
 ## Requirements
 
 - Any Chromium-based browser: Google Chrome, Microsoft Edge, Brave, Arc, Vivaldi, Opera, or Chromium
-- Node.js (for agent skill install) or the Rust binary (no runtime dependencies)
+- No runtime dependencies (single Rust binary)
 
-Auto-detected on macOS, Linux, Windows, and WSL (finds the Windows host browser automatically). Set `CHROME_PATH` to override.
+Auto-detected on macOS, Linux, Windows, and WSL. Set `CHROME_PATH` to override.
 
 ## License
 
