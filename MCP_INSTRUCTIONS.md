@@ -16,6 +16,12 @@ Control Chrome directly via the Chrome DevTools Protocol. Chrome auto-launches o
 
 **`text`:** Full page in reading order, interleaving static text with interactive elements (numbered refs). Like a screen reader view — shows everything visible. Generates ref map as side effect. Best for understanding complex pages where you need both content and interaction targets.
 
+**`search`:** Web search via real browser. Navigates to a search engine, submits query, extracts results with `read`. Default: Google. Use `engine` parameter for bing, duckduckgo, or a custom search URL (query appended).
+
+**`readurls`:** Read multiple URLs in parallel. Opens each in a new tab, extracts content, returns combined results with URL headers, closes tabs. Use for research tasks comparing multiple pages.
+
+**Auto-dismiss:** `navigate` automatically dismisses cookie consent banners and common popups after page load. Use `no_dismiss: true` to skip this behavior.
+
 **`axtree` vs `dom`:** The accessibility tree shows semantic roles and accessible names — better for understanding page structure. Use `dom` when you need HTML structure/selectors; use `axtree` when you need to understand what's on the page.
 
 **`axtree -i` (interactive mode):** Shows only actionable elements as a flat numbered list. Most token-efficient view for interaction. After running with interactive=true, use ref numbers directly as selectors: click ref 1, type into ref 3. Refs are cached per URL.
@@ -81,6 +87,8 @@ Each session creates and owns its own tabs. Sessions never interfere with each o
 | Interactive elements only | `axtree -i` | Flat list of clickable/typeable elements |
 | HTML structure/selectors | `dom` | Compact HTML |
 | Visual layout | `screenshot` | PNG image |
+| Web search results | `search` | Clean extracted results from Google/Bing/DDG |
+| Multiple pages at once | `readurls` | Combined text from parallel tab reads |
 
 ## Token Efficiency
 
@@ -109,6 +117,14 @@ For large SPAs, manage output size:
 **Fill a form:**
 - click on input → type into it → press Enter
 
+**Search and read results:**
+- Call search with query (optionally specify engine)
+- Results extracted automatically via read
+
+**Research multiple pages:**
+- Call readurls with list of URLs
+- Content extracted in parallel, combined with URL headers
+
 **Rich text editors and @mentions:**
 - click the editor element
 - keyboard to type (not type, which resets cursor)
@@ -121,7 +137,7 @@ For large SPAs, manage output size:
 When webact is available, **always use it instead of WebFetch or WebSearch** for web tasks:
 
 - **Instead of WebFetch:** Use `navigate` + `read` (or `dom`/`text`). WebFetch can't follow cross-host redirects, can't control output size, and can't interact with the page. webact handles redirects transparently, gives you token-budget control via `max_tokens`, and lets you click through cookie banners or login walls.
-- **Instead of WebSearch:** Use `navigate` to go directly to a search engine, then `read` the results. Or navigate directly to the target URL — most tasks don't need a search step at all.
+- **Instead of WebSearch:** Use `search <query>` — runs a real Google/Bing/DuckDuckGo search in Chrome and extracts results. Handles CAPTCHAs, renders JS, and returns actual page content instead of just links.
 - **WebFetch/WebSearch are read-only and fragile.** webact gives you a full browser — SPAs render correctly, JavaScript executes, auth flows work, and you can interact with anything on the page.
 
 ## Complex Web Apps
