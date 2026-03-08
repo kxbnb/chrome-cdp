@@ -151,14 +151,31 @@ pub(super) async fn cmd_dom(
         let suggest_script = r#"(function() {
             const s = [];
             document.querySelectorAll('[id]').forEach(el => {
-                if (s.length < 5) s.push('#' + CSS.escape(el.id));
+                if (s.length < 15) s.push('#' + CSS.escape(el.id));
             });
             document.querySelectorAll('[data-testid]').forEach(el => {
-                if (s.length < 8) s.push('[data-testid="' + el.getAttribute('data-testid') + '"]');
+                if (s.length < 20) s.push('[data-testid="' + el.getAttribute('data-testid') + '"]');
             });
-            ['main','article','section','nav','form','table'].forEach(tag => {
-                if (s.length < 10 && document.querySelector(tag)) s.push(tag);
+            ['main','article','section','nav','header','footer','aside','form','table'].forEach(tag => {
+                if (document.querySelector(tag)) s.push(tag);
             });
+            document.querySelectorAll('[role]').forEach(el => {
+                const r = el.getAttribute('role');
+                const sel = '[role="' + r + '"]';
+                if (s.length < 30 && !s.includes(sel)) s.push(sel);
+            });
+            document.querySelectorAll('[aria-label]').forEach(el => {
+                if (s.length < 35) s.push('[aria-label="' + el.getAttribute('aria-label').replace(/"/g, '\\"') + '"]');
+            });
+            if (s.length === 0) {
+                const top = document.body.children;
+                for (let i = 0; i < Math.min(top.length, 5); i++) {
+                    const el = top[i];
+                    const tag = el.tagName.toLowerCase();
+                    const cls = el.className && typeof el.className === 'string' ? '.' + el.className.trim().split(/\s+/).slice(0,2).join('.') : '';
+                    s.push(tag + cls);
+                }
+            }
             return s;
         })()"#;
         let suggest_result = runtime_evaluate_with_context(&mut cdp, suggest_script, true, false, context_id).await?;
