@@ -1,15 +1,13 @@
 #!/bin/sh
 
-BINARY="webact-mcp"
-CLI_BINARY="webact"
 REMOVED=""
 
-echo "Uninstalling webact..."
+echo "Uninstalling webact (cleaning up all versions)..."
 
-# --- Remove binaries ---
+# --- Remove binaries (current + old "webact-rs" name) ---
 
 for dir in /usr/local/bin "$HOME/.local/bin"; do
-  for bin in "$BINARY" "$CLI_BINARY"; do
+  for bin in webact-mcp webact webact-rs; do
     if [ -x "$dir/${bin}" ]; then
       if [ -w "$dir" ]; then
         rm "$dir/${bin}"
@@ -26,14 +24,45 @@ for dir in /usr/local/bin "$HOME/.local/bin"; do
   done
 done
 
+# --- Remove old npm global install if present ---
+
+if command -v npm >/dev/null 2>&1; then
+  if npm list -g webact-rs 2>/dev/null | grep -q webact-rs; then
+    npm uninstall -g webact-rs 2>/dev/null && {
+      echo "Removed old npm global package webact-rs"
+      REMOVED="${REMOVED}npm-webact-rs, "
+    }
+  fi
+fi
+
 # --- Remove PATH entry from shell rc ---
 
 for rc in "$HOME/.zshrc" "$HOME/.bashrc" "$HOME/.bash_profile"; do
   if [ -f "$rc" ] && grep -q "# Added by webact installer" "$rc" 2>/dev/null; then
-    # Remove the blank line, comment, and export line added by installer
-    sed -i.bak -e '/^$/N;/\n# Added by webact installer/{N;d;}' "$rc" 2>/dev/null || \
-      sed -i '' -e '/^[[:space:]]*$/{N;/# Added by webact installer/{N;d;}}' "$rc"
-    rm -f "${rc}.bak"
+    # Installer adds 3 lines: blank line, comment, export PATH=...
+    if command -v python3 >/dev/null 2>&1; then
+      python3 -c "
+import sys
+p, m = sys.argv[1], sys.argv[2]
+with open(p) as f:
+    lines = f.readlines()
+out, i = [], 0
+while i < len(lines):
+    if m in lines[i]:
+        if out and out[-1].strip() == '':
+            out.pop()
+        i += 2
+    else:
+        out.append(lines[i])
+        i += 1
+with open(p, 'w') as f:
+    f.writelines(out)
+" "$rc" "# Added by webact installer"
+    else
+      sed -i.bak -e '/^$/N;/\n# Added by webact installer/{N;d;}' "$rc" 2>/dev/null || \
+        sed -i '' -e '/^[[:space:]]*$/{N;/# Added by webact installer/{N;d;}}' "$rc"
+      rm -f "${rc}.bak"
+    fi
     echo "Removed PATH entry from $rc"
     REMOVED="${REMOVED}PATH, "
   fi
