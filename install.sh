@@ -67,6 +67,21 @@ chmod +x "${INSTALL_DIR}/${BINARY}"
 
 echo "Installed ${BINARY} to ${INSTALL_DIR}/${BINARY}"
 
+# Update stale copies in other known locations
+for other_dir in /usr/local/bin "$HOME/.local/bin"; do
+  if [ "$other_dir" != "$INSTALL_DIR" ] && [ -x "$other_dir/${BINARY}" ]; then
+    if [ -w "$other_dir" ]; then
+      cp "${INSTALL_DIR}/${BINARY}" "$other_dir/${BINARY}"
+      echo "Updated stale copy at ${other_dir}/${BINARY}"
+    elif sudo -n true 2>/dev/null; then
+      sudo cp "${INSTALL_DIR}/${BINARY}" "$other_dir/${BINARY}"
+      echo "Updated stale copy at ${other_dir}/${BINARY}"
+    else
+      echo "WARNING: stale copy at ${other_dir}/${BINARY} (update manually or remove)"
+    fi
+  fi
+done
+
 # Warn if install dir is not in PATH
 case ":$PATH:" in
   *":${INSTALL_DIR}:"*) ;;
