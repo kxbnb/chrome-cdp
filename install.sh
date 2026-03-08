@@ -122,14 +122,14 @@ echo "Configuring MCP clients..."
 
 # Claude Code (uses CLI, not a config file)
 if command -v claude >/dev/null 2>&1; then
-  if claude mcp get webact >/dev/null 2>&1; then
+  if claude mcp get -s user webact >/dev/null 2>&1; then
     echo "  Claude Code: already configured"
     CONFIGURED="${CONFIGURED}Claude Code, "
   else
-    claude mcp add webact "$BINARY_PATH" 2>/dev/null && {
+    claude mcp add -s user webact "$BINARY_PATH" 2>/dev/null && {
       echo "  Claude Code: configured"
       CONFIGURED="${CONFIGURED}Claude Code, "
-    } || echo "  Claude Code: failed to configure (try: claude mcp add webact $BINARY_PATH)"
+    } || echo "  Claude Code: failed to configure (try: claude mcp add -s user webact $BINARY_PATH)"
   fi
 fi
 
