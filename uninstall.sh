@@ -145,6 +145,32 @@ elif [ "$PLATFORM" = "linux" ]; then
   remove_mcp_config "$HOME/.codeium/windsurf/mcp_config.json" "Windsurf"
 fi
 
+# --- Remove from project-level MCP configs ---
+
+echo ""
+echo "Scanning for project-level MCP configs..."
+PROJECT_CONFIGS=""
+
+# Known project-level MCP config patterns:
+#   .mcp.json              (Claude Code)
+#   .cursor/mcp.json       (Cursor)
+#   .windsurf/mcp.json     (Windsurf)
+#   .vscode/cline_mcp_settings.json (Cline)
+PROJECT_CONFIGS="$(find "$HOME" -maxdepth 6 \
+  \( -name .mcp.json -o -path '*/.cursor/mcp.json' -o -path '*/.windsurf/mcp.json' -o -path '*/.vscode/cline_mcp_settings.json' \) \
+  -not -path '*/node_modules/*' \
+  -not -path '*/.git/*' \
+  -not -path '*/Library/Application Support/*' \
+  2>/dev/null | xargs grep -l '"webact"' 2>/dev/null || true)"
+
+if [ -n "$PROJECT_CONFIGS" ]; then
+  echo "$PROJECT_CONFIGS" | while read -r pconfig; do
+    remove_mcp_config "$pconfig" "project ($pconfig)"
+  done
+else
+  echo "  No project-level configs found."
+fi
+
 # Codex
 if command -v codex >/dev/null 2>&1; then
   if codex mcp list 2>/dev/null | grep -q 'webact'; then
