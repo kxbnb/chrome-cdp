@@ -35,15 +35,30 @@ pub(super) async fn cmd_launch(ctx: &mut AppContext) -> Result<()> {
     fs::create_dir_all(&user_data_dir)
         .with_context(|| format!("failed creating {}", user_data_dir.display()))?;
 
-    let mut command = Command::new(&browser.path);
+    let chrome_args = [
+        format!("--remote-debugging-port={}", ctx.cdp_port),
+        format!("--user-data-dir={}", user_data_dir.to_string_lossy()),
+        "--no-first-run".to_string(),
+        "--no-default-browser-check".to_string(),
+    ];
+
+    let mut command = if cfg!(target_os = "macos") {
+        // Use `open -gja` to launch hidden and without stealing focus
+        let mut cmd = Command::new("open");
+        cmd.arg("-gja").arg(&browser.name).arg("--args");
+        for a in &chrome_args {
+            cmd.arg(a);
+        }
+        cmd
+    } else {
+        let mut cmd = Command::new(&browser.path);
+        for a in &chrome_args {
+            cmd.arg(a);
+        }
+        cmd
+    };
+
     command
-        .arg(format!("--remote-debugging-port={}", ctx.cdp_port))
-        .arg(format!(
-            "--user-data-dir={}",
-            user_data_dir.to_string_lossy()
-        ))
-        .arg("--no-first-run")
-        .arg("--no-default-browser-check")
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null());

@@ -44,12 +44,13 @@ Control Chrome directly via the Chrome DevTools Protocol. Chrome auto-launches o
 
 ## Tab Isolation
 
-Each session creates and owns its own tabs. Sessions never interfere with each other.
+Multiple agents share the same Chrome instance. **Never touch tabs you didn't create.**
 
-- Launch creates a new blank tab for the session
-- newtab opens additional tabs within the session
-- tabs only lists session-owned tabs
-- close removes the tab from the session
+- Your session starts with one tab. Use `newtab` to open more — never reuse or navigate existing tabs from other sessions.
+- `tabs` only lists your session's tabs. If a tab isn't in your list, it's not yours.
+- `close` removes a tab from your session. Only close tabs you created.
+- **Before finishing:** close all tabs you opened with `newtab`. Run `tabs` to check for orphans.
+- **Never navigate a tab that already has content from another agent.** Always create a fresh tab with `newtab` instead.
 
 **Shared Chrome awareness:** Link clicks on sites like Slack can hijack your tab. Always record your tab ID after launch/newtab and verify you're on the right tab before acting.
 
