@@ -357,8 +357,16 @@ pub async fn connect_to_tab(ctx: &mut AppContext) -> Result<DebugTab> {
         }
     }
 
-    let selected =
-        tab.ok_or_else(|| anyhow!("No active tab for this session. Navigate to a URL first."))?;
+    // Auto-recover: create a new tab if all owned tabs are gone
+    let selected = match tab {
+        Some(t) => t,
+        None => {
+            eprintln!("Session tab lost — auto-creating replacement tab");
+            let new_tab = create_new_tab(ctx, None).await?;
+            state.tabs.push(new_tab.id.clone());
+            new_tab
+        }
+    };
     if selected.web_socket_debugger_url.is_none() {
         bail!("Selected tab has no webSocketDebuggerUrl");
     }
