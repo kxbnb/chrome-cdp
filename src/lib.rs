@@ -49,6 +49,7 @@ pub struct AppContext {
     pub session_id: String,
     pub tool_counts: std::collections::HashMap<String, u64>,
     pub session_start: std::time::Instant,
+    pub mcp_mode: bool,
 }
 
 impl AppContext {
@@ -67,6 +68,7 @@ impl AppContext {
             session_id: uuid::Uuid::new_v4().to_string(),
             tool_counts: std::collections::HashMap::new(),
             session_start: std::time::Instant::now(),
+            mcp_mode: false,
         })
     }
 

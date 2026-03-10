@@ -33,6 +33,7 @@ async fn run_mcp_server() -> Result<()> {
     let stdout = io::stdout();
 
     let mut ctx = AppContext::new()?;
+    ctx.mcp_mode = true;
 
     // Try to pick up an existing session
     if let Some(port) = env::var("CDP_PORT")
@@ -223,19 +224,27 @@ async fn handle_tool_call(
     // Commands that don't need a browser session
     let no_browser = matches!(command, "launch" | "connect" | "feedback" | "config");
 
-    // Auto-discover session for most commands
+    // Auto-discover or create an isolated session for this MCP process.
+    // Each MCP server gets its own session+tab so multiple agents don't collide.
     if !no_browser && ctx.current_session_id.is_none() {
-        let _ = ctx.auto_discover_last_session();
-    }
-
-    // Auto-launch: if no session or Chrome not reachable, launch automatically
-    if !no_browser {
-        let needs_launch = if ctx.current_session_id.is_none() {
-            true
+        // Try to get Chrome connection info from the last session
+        let chrome_reachable = if ctx.auto_discover_last_session().is_ok() {
+            // We found a session — grab its port/host but we'll create our own session
+            get_debug_tabs(ctx).await.is_ok()
         } else {
-            get_debug_tabs(ctx).await.is_err()
+            false
         };
-        if needs_launch {
+
+        if chrome_reachable {
+            // Chrome is running — create our own isolated session with a fresh tab
+            eprintln!("Creating isolated session for this agent...");
+            ctx.current_session_id = None; // Clear so connect creates a new one
+            ctx.output.clear();
+            commands::dispatch(ctx, "connect", &[]).await?;
+            let connect_output = ctx.drain_output();
+            eprintln!("Session created: {}", connect_output.trim());
+        } else {
+            // No Chrome running — launch it (which also creates a session)
             eprintln!("Auto-launching browser for {command}...");
             ctx.output.clear();
             commands::dispatch(ctx, "launch", &[]).await?;

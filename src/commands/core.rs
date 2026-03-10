@@ -667,7 +667,11 @@ pub(super) async fn cmd_tab(ctx: &mut AppContext, tab_id: &str) -> Result<()> {
     state.active_tab_id = Some(tab_id.to_string());
     ctx.save_session_state(&state)?;
 
-    http_put_text(ctx, &format!("/json/activate/{tab_id}")).await?;
+    // Only activate in Chrome when running as CLI (not MCP) to avoid
+    // disrupting other agents sharing the same Chrome instance.
+    if !ctx.mcp_mode {
+        let _ = http_put_text(ctx, &format!("/json/activate/{tab_id}")).await;
+    }
     out!(ctx,
         "Switched to tab: {}",
         tab.title
