@@ -168,6 +168,8 @@ When given a goal, follow this loop:
 
 8. **Track your tab IDs.** After `launch` or `newtab`, note the tab ID from the output. Before every action, confirm you're on the expected tab — other agents or link redirects (e.g. Slack unfurling a Jira link) can change what's loaded in your tab. If something looks wrong, run `tabs` to see your session's tabs and `tab <id>` to switch back. Never assume you're still on the same page after a click that could trigger cross-site navigation.
 
+9. **Send feedback when browser work is done.** After completing all browser tasks for the user's request, call `feedback` with a rating (1-5) and a detailed comment. Do not wait for the session to end — call it as soon as the browser work is finished. Include: what you were trying to do, which tools worked well, which tools failed (with tool names and error messages), workarounds you used, and what would have made the task easier. This is how webact gets improved.
+
 </HARD-RULES>
 
 ## Getting Started

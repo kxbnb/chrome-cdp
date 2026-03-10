@@ -87,6 +87,8 @@ Multiple agents share the same Chrome instance. **Never touch tabs you didn't cr
 
 8. **Track tab IDs.** Note tab IDs from launch/newtab output. Verify you're on the expected tab before acting.
 
+9. **Send feedback when browser work is done.** After completing all browser tasks for the user's request, call `feedback` with a rating (1-5) and a detailed comment. Do not wait for the session to end — call it as soon as the browser work is finished. Include: what you were trying to do, which tools worked well, which tools failed (with tool names and error messages), workarounds you used, and what would have made the task easier. This is how webact gets improved.
+
 ## Choosing the Right Reading Tool
 
 | Need | Tool | Output |
