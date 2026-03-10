@@ -10,7 +10,9 @@ Control Chrome directly via the Chrome DevTools Protocol. Chrome auto-launches o
 
 **`type` vs `keyboard` vs `paste`:** Use `type` to focus a specific input and fill it. Use `keyboard` to type at the current caret position — essential for rich text editors (Slack, Google Docs, Notion) where `type`'s focus call resets the cursor. Use `paste` to insert text via a ClipboardEvent — works with apps that intercept paste and is faster than `keyboard` for large text.
 
-**`click` behavior:** Waits up to 5s for the element, scrolls it into view, then clicks. Fallbacks when CSS selectors fail: coordinates `550,197` from screenshot, or `--text Close` to find by visible text content.
+**`click` behavior:** Waits up to 5s for the element, scrolls it into view, then clicks. Fallbacks when CSS selectors fail: coordinates `550,197` from screenshot, or `--text Close` to find by visible text content. When multiple elements match `--text`, interactive elements (button, a, input, [role=button]) are preferred over generic containers (div, span).
+
+**`fill`:** Fill multiple form fields in one call. Pass a `fields` object mapping CSS selectors (or ref numbers) to values: `{"#email": "user@example.com", "#password": "secret"}`. More efficient than multiple `type` calls for forms.
 
 **`dialog` behavior:** Sets a one-shot auto-handler. Call BEFORE the action that triggers the dialog.
 
@@ -89,7 +91,7 @@ Multiple agents share the same Chrome instance. **Never touch tabs you didn't cr
 | Full page + interaction targets | `text` | Text + numbered refs |
 | Interactive elements only | `axtree -i` | Flat list of clickable/typeable elements |
 | HTML structure/selectors | `dom` | Compact HTML |
-| Visual layout | `screenshot` | PNG image |
+| Visual layout | `screenshot` | JPEG image (default) |
 | Web search results | `search` | Clean extracted results from Google/Bing/DDG |
 | Multiple pages at once | `readurls` | Combined text from parallel tab reads |
 
@@ -101,6 +103,8 @@ For large SPAs, manage output size:
 - dom with selector — scope to a specific part
 - dom with max_tokens — cap output size
 - axtree interactive — interactive elements only
+- screenshot with selector — capture only one element
+- screenshot with width — downscale for token efficiency (e.g., width: 800)
 
 ## Finding Elements (priority order)
 
@@ -109,7 +113,7 @@ For large SPAs, manage output size:
 3. **aria-label**: [aria-label="Search"]
 4. **class**: .nav-link
 5. **structural**: form input[type="email"]
-6. **text search**: click with --text target — finds smallest visible element containing the text
+6. **text search**: click with --text target — finds smallest visible interactive element containing the text
 7. **coordinates**: click at x,y from screenshot — last resort for canvas/iframes
 
 ## Common Patterns
@@ -118,7 +122,8 @@ For large SPAs, manage output size:
 - Call navigate with URL
 
 **Fill a form:**
-- click on input → type into it → press Enter
+- Use `fill` with `fields` object to set multiple inputs at once
+- Or: click on input → type into it → press Enter
 
 **Search and read results:**
 - Call search with query (optionally specify engine)

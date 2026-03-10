@@ -48,7 +48,8 @@ webact dom
 | `dom [selector] [--tokens=N]` | `webact dom` or `webact dom .results` or `webact dom --tokens=1000` |
 | `axtree [selector] [-i]` | `webact axtree` or `webact axtree -i` |
 | `observe` | `webact observe` |
-| `screenshot` | `webact screenshot` |
+| `screenshot [options]` | `webact screenshot` or `webact screenshot --selector=.main --width=800` |
+| `fill <sel val ...>` | `webact fill "#email" "user@example.com" "#pass" "secret"` |
 | `pdf [path]` | `webact pdf` or `webact pdf /tmp/page.pdf` |
 | `click <sel\|x,y\|--text>` | `webact click button.submit` or `click 550,197` or `click --text Close` |
 | `doubleclick <sel\|x,y\|--text>` | `webact doubleclick td.cell` or `doubleclick 550,197` |
@@ -85,7 +86,11 @@ webact dom
 
 **`type` vs `keyboard` vs `paste`:** Use `type` to focus a specific input and fill it. Use `keyboard` to type at the current caret position - essential for rich text editors (Slack, Google Docs, Notion) where `type`'s focus call resets the cursor. Use `paste` to insert text via a ClipboardEvent - works with apps that intercept paste (Google Docs, Notion) and is faster than `keyboard` for large text.
 
-**`click` behavior:** Waits up to 5s for the element, scrolls it into view, then clicks. No manual waits needed for dynamic elements. Fallbacks when CSS selectors fail: `click 550,197` clicks at exact coordinates (from screenshot), `click --text Close` finds and clicks a visible element by text content.
+**`click` behavior:** Waits up to 5s for the element, scrolls it into view, then clicks. No manual waits needed for dynamic elements. Fallbacks when CSS selectors fail: `click 550,197` clicks at exact coordinates (from screenshot), `click --text Close` finds and clicks a visible element by text content. When multiple elements match `--text`, interactive elements (button, a, input, [role=button]) are preferred over generic containers (div, span).
+
+**`fill`:** Fill multiple form fields in one call. Pass alternating selector/value pairs: `fill "#email" "user@example.com" "#password" "secret"`. More efficient than multiple `type` calls. Supports ref numbers from `axtree -i`.
+
+**`screenshot` options:** Defaults to JPEG quality 80 for token efficiency. Options: `--format=png` for lossless, `--quality=N` (1-100), `--selector=CSS` to capture only one element, `--width=N` to downscale (e.g., `--width=800`).
 
 **`dialog` behavior:** Sets a one-shot auto-handler. Run BEFORE the action that triggers the dialog.
 
@@ -180,6 +185,8 @@ If Chrome is not running, `launch` starts a new instance automatically and minim
 - `dom <selector>` — scope to a specific part of the page
 - `dom --tokens=N` — cap output to ~N tokens
 - `axtree -i` — interactive elements only (most compact)
+- `screenshot --selector=.main` — capture only one element
+- `screenshot --width=800` — downscale for token efficiency
 
 ## Finding Elements
 
@@ -190,7 +197,7 @@ Read the DOM output and identify elements by:
 4. **class**: `.nav-link`
 5. **structural**: `form input[type="email"]`
 6. **text-based** (via eval): use eval with `document.querySelector('button').textContent`
-7. **text search**: `click --text "Close"` — finds smallest visible element containing the text. Works for portals, overlays, and shadow DOM elements where CSS selectors fail.
+7. **text search**: `click --text "Close"` — finds smallest visible interactive element containing the text. Prefers buttons/links over divs. Works for portals, overlays, and shadow DOM elements where CSS selectors fail.
 8. **coordinates** (from screenshot): `click 550,197` — take a screenshot, identify the target's position, click at those pixel coordinates. Last resort for canvas, iframes, or elements with no text.
 
 If a CSS selector doesn't work, use `--text` or coordinates before falling back to `eval`:
@@ -209,6 +216,9 @@ webact navigate https://news.ycombinator.com
 
 **Fill a form:**
 ```bash
+# Multiple fields at once:
+webact fill "input[name=q]" "search query"
+# Or one at a time:
 webact click input[name=q]
 webact type input[name=q] search query
 webact press Enter
