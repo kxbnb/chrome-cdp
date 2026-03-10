@@ -216,7 +216,7 @@ async fn handle_tool_call(
     // Return text content
     let text = output.trim_end().to_string();
     if text.is_empty() {
-        Ok(vec![json!({ "type": "text", "text": "OK" })])
+        Ok(vec![json!({ "type": "text", "text": format!("{command}: no output") })])
     } else {
         Ok(vec![json!({ "type": "text", "text": text })])
     }

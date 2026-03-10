@@ -213,6 +213,14 @@ pub(super) async fn cmd_dom(
         return Ok(());
     }
 
+    if dom_output.is_empty() {
+        if let Some(sel) = selector {
+            out!(ctx, "Element matched but has no visible DOM content: {sel}");
+        }
+        cdp.close().await;
+        return Ok(());
+    }
+
     if max_tokens > 0 {
         let char_budget = max_tokens.saturating_mul(4);
         if dom_output.len() > char_budget {
