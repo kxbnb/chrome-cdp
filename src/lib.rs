@@ -539,6 +539,50 @@ pub async fn wait_for_ready_state_complete(cdp: &mut CdpClient, timeout: Duratio
     Ok(())
 }
 
+/// Wait until no network requests are in-flight for `quiet_ms`.
+/// Gives up after `timeout_ms` total and proceeds anyway.
+pub async fn wait_for_network_idle(cdp: &mut CdpClient, quiet_ms: u64, timeout_ms: u64) -> Result<()> {
+    cdp.send("Network.enable", json!({})).await?;
+
+    let mut inflight: i32 = 0;
+    let deadline = Instant::now() + Duration::from_millis(timeout_ms);
+    let quiet = Duration::from_millis(quiet_ms);
+    let mut last_activity = Instant::now();
+
+    loop {
+        let now = Instant::now();
+        if now >= deadline {
+            break;
+        }
+        if inflight <= 0 && now.duration_since(last_activity) >= quiet {
+            break;
+        }
+        // Cap wait to quiet period so we re-check idle condition promptly
+        let remain = std::cmp::min(deadline.saturating_duration_since(now), quiet);
+        let Some(event) = cdp.next_event(remain).await? else {
+            // Timeout — re-check idle condition at top of loop
+            continue;
+        };
+        if event.is_null() {
+            continue;
+        }
+        match event.get("method").and_then(Value::as_str).unwrap_or_default() {
+            "Network.requestWillBeSent" => {
+                inflight += 1;
+                last_activity = Instant::now();
+            }
+            "Network.loadingFinished" | "Network.loadingFailed" => {
+                inflight -= 1;
+                last_activity = Instant::now();
+            }
+            _ => {}
+        }
+    }
+
+    cdp.send("Network.disable", json!({})).await?;
+    Ok(())
+}
+
 pub async fn locate_element(
     ctx: &AppContext,
     cdp: &mut CdpClient,

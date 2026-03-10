@@ -366,6 +366,10 @@ pub(super) async fn cmd_read(
     let script = build_read_extract_script(selector)?;
     let mut cdp = open_cdp(ctx).await?;
     prepare_cdp(ctx, &mut cdp).await?;
+
+    // Wait for JS-loaded content: no network activity for 500ms, up to 3s total
+    wait_for_network_idle(&mut cdp, 500, 3000).await?;
+
     let context_id = get_frame_context_id(ctx, &mut cdp).await?;
     let result = runtime_evaluate_with_context(&mut cdp, &script, true, false, context_id).await?;
     let mut output = result
