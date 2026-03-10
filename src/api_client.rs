@@ -3,7 +3,7 @@ use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::time::Duration;
 
-const DEFAULT_API_URL: &str = "https://webact-api-227308092166.us-central1.run.app";
+const DEFAULT_API_URL: &str = "https://webact.space";
 const TIMEOUT: Duration = Duration::from_secs(2);
 const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(5);
 
