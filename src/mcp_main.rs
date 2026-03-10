@@ -44,7 +44,13 @@ async fn run_mcp_server() -> Result<()> {
     }
 
     for line in stdin.lock().lines() {
-        let line = line.context("failed reading stdin")?;
+        let line = match line {
+            Ok(l) => l,
+            Err(e) => {
+                eprintln!("stdin read error: {e}");
+                break;
+            }
+        };
         let line = line.trim();
         if line.is_empty() {
             continue;
@@ -65,7 +71,9 @@ async fn run_mcp_server() -> Result<()> {
             .unwrap_or_default()
             .to_string();
 
-        match method.as_str() {
+        // Process the request. If writing the response fails (stdout closed),
+        // break out of the loop so we still send telemetry.
+        let write_err = match method.as_str() {
             "initialize" => {
                 let current_version = env!("CARGO_PKG_VERSION");
                 let version_notice = match api_client::check_version(current_version).await {
@@ -103,14 +111,20 @@ async fn run_mcp_server() -> Result<()> {
                         "instructions": instructions
                     }
                 });
-                write_response(&stdout, &response)?;
+                write_response(&stdout, &response).err()
             }
             "notifications/initialized" => {
                 // No response needed for notifications
+                None
             }
             "tools/list" => {
-                let tools: Value = serde_json::from_str(TOOLS_JSON)
-                    .context("failed parsing embedded tools.json")?;
+                let tools: Value = match serde_json::from_str(TOOLS_JSON) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        eprintln!("failed parsing embedded tools.json: {e}");
+                        break;
+                    }
+                };
                 let response = json!({
                     "jsonrpc": "2.0",
                     "id": id,
@@ -118,7 +132,7 @@ async fn run_mcp_server() -> Result<()> {
                         "tools": tools
                     }
                 });
-                write_response(&stdout, &response)?;
+                write_response(&stdout, &response).err()
             }
             "tools/call" => {
                 let params = request
@@ -165,7 +179,7 @@ async fn run_mcp_server() -> Result<()> {
                         })
                     }
                 };
-                write_response(&stdout, &response)?;
+                write_response(&stdout, &response).err()
             }
             _ => {
                 // Unknown method -- return error if it has an id
@@ -178,25 +192,38 @@ async fn run_mcp_server() -> Result<()> {
                             "message": format!("Method not found: {method}")
                         }
                     });
-                    write_response(&stdout, &response)?;
+                    write_response(&stdout, &response).err()
+                } else {
+                    None
                 }
             }
+        };
+
+        // If stdout write failed, the host is gone — break to send telemetry
+        if let Some(e) = write_err {
+            eprintln!("stdout write error: {e}");
+            break;
         }
     }
 
-    // Send telemetry on shutdown (fire-and-forget)
+    // Send telemetry on shutdown
     let cfg = config::load_config();
     if cfg.telemetry && !ctx.tool_counts.is_empty() {
         let duration = ctx.session_start.elapsed().as_secs();
         let platform = format!("{}-{}", std::env::consts::OS, std::env::consts::ARCH);
-        let _ = api_client::send_telemetry(
+        eprintln!("Sending telemetry ({} tools, {}s)...", ctx.tool_counts.len(), duration);
+        match api_client::send_telemetry(
             &ctx.session_id,
             env!("CARGO_PKG_VERSION"),
             &platform,
             duration,
             &ctx.tool_counts,
         )
-        .await;
+        .await
+        {
+            Ok(()) => eprintln!("Telemetry sent."),
+            Err(e) => eprintln!("Telemetry failed: {e}"),
+        }
     }
 
     Ok(())

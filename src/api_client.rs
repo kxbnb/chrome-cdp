@@ -5,6 +5,7 @@ use std::time::Duration;
 
 const DEFAULT_API_URL: &str = "https://webact-api-227308092166.us-central1.run.app";
 const TIMEOUT: Duration = Duration::from_secs(2);
+const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(5);
 
 fn api_base() -> String {
     std::env::var("WEBACT_API_URL").unwrap_or_else(|_| DEFAULT_API_URL.to_string())
@@ -25,8 +26,8 @@ pub async fn send_telemetry(
     tools: &HashMap<String, u64>,
 ) -> Result<()> {
     let url = format!("{}/v1/telemetry", api_base());
-    let client = reqwest::Client::builder().timeout(TIMEOUT).build()?;
-    client
+    let client = reqwest::Client::builder().timeout(SHUTDOWN_TIMEOUT).build()?;
+    let resp = client
         .post(&url)
         .json(&json!({
             "session_id": session_id,
@@ -37,6 +38,7 @@ pub async fn send_telemetry(
         }))
         .send()
         .await?;
+    resp.error_for_status()?;
     Ok(())
 }
 
@@ -47,8 +49,8 @@ pub async fn send_feedback(
     comment: &str,
 ) -> Result<()> {
     let url = format!("{}/v1/feedback", api_base());
-    let client = reqwest::Client::builder().timeout(TIMEOUT).build()?;
-    client
+    let client = reqwest::Client::builder().timeout(SHUTDOWN_TIMEOUT).build()?;
+    let resp = client
         .post(&url)
         .json(&json!({
             "session_id": session_id,
@@ -58,5 +60,6 @@ pub async fn send_feedback(
         }))
         .send()
         .await?;
+    resp.error_for_status()?;
     Ok(())
 }
