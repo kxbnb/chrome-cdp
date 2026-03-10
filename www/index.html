@@ -1168,7 +1168,7 @@ toggle.addEventListener('click', () => {
 // Live stats
 (async function loadStats() {
   try {
-    const res = await fetch('https://webact-api-227308092166.us-central1.run.app/v1/stats');
+    const res = await fetch('/v1/stats');
     const data = await res.json();
 
     // Ratings
