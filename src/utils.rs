@@ -162,16 +162,20 @@ pub fn human_size(size: u64) -> String {
 pub fn activate_browser(browser_name: &str) -> Result<()> {
     if cfg!(target_os = "macos") {
         let script = format!(
-            "tell application \"{}\" to activate\ntell application \"{}\" to set miniaturized of window 1 to false",
-            browser_name, browser_name
+            r#"tell application "{name}" to activate
+try
+    tell application "{name}" to set miniaturized of window 1 to false
+end try"#,
+            name = browser_name
         );
-        let status = Command::new("osascript")
+        let output = Command::new("osascript")
             .arg("-e")
             .arg(script)
-            .status()
+            .output()
             .context("failed to run osascript")?;
-        if !status.success() {
-            bail!("osascript failed");
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            bail!("osascript failed: {}", stderr.trim());
         }
     }
     Ok(())
@@ -180,16 +184,21 @@ pub fn activate_browser(browser_name: &str) -> Result<()> {
 pub fn minimize_browser(browser_name: &str) -> Result<()> {
     if cfg!(target_os = "macos") {
         let script = format!(
-            "tell application \"{}\" to set miniaturized of every window to true",
-            browser_name
+            r#"tell application "{name}"
+    if (count of windows) > 0 then
+        set miniaturized of every window to true
+    end if
+end tell"#,
+            name = browser_name
         );
-        let status = Command::new("osascript")
+        let output = Command::new("osascript")
             .arg("-e")
             .arg(script)
-            .status()
+            .output()
             .context("failed to run osascript")?;
-        if !status.success() {
-            bail!("osascript failed");
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            bail!("osascript failed: {}", stderr.trim());
         }
     }
     Ok(())
