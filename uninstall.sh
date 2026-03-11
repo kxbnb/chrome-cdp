@@ -171,6 +171,20 @@ else
   echo "  No project-level configs found."
 fi
 
+# --- Remove Claude Code plugin/skills cache ---
+# The plugin system caches skills and plugin metadata separately from MCP configs.
+# Old Node.js versions installed webact.js here; must be cleaned up.
+
+for stale_dir in \
+  "$HOME/.claude/skills/webact" \
+  "$HOME/.claude/plugins/cache/webact"; do
+  if [ -d "$stale_dir" ]; then
+    rm -rf "$stale_dir"
+    echo "Removed $stale_dir"
+    REMOVED="${REMOVED}plugin-cache, "
+  fi
+done
+
 # Codex
 if command -v codex >/dev/null 2>&1; then
   if codex mcp list 2>/dev/null | grep -q 'webact'; then
