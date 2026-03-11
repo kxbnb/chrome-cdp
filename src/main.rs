@@ -25,6 +25,9 @@ async fn run() -> Result<()> {
         print_help();
         return Ok(());
     }
+    if command == "mcp" {
+        return webact::mcp::run_mcp_server().await;
+    }
 
     let mut ctx = AppContext::new()?;
     if let Some(port) = env::var("CDP_PORT")

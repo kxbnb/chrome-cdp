@@ -1,15 +1,11 @@
 [package]
 name = "webact"
-version = "0.1.23"
+version = "0.1.24"
 edition = "2024"
 
 [[bin]]
 name = "webact"
 path = "src/main.rs"
-
-[[bin]]
-name = "webact-mcp"
-path = "src/mcp_main.rs"
 
 [dependencies]
 anyhow = "1.0"

@@ -1,9 +1,8 @@
-use webact::*;
-use webact::api_client;
-use webact::config;
+use crate::*;
+use crate::api_client;
+use crate::config;
 
 use std::io::{self, Write as IoWrite};
-use serde_json::Value;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::time::{interval, Duration};
 
@@ -12,27 +11,7 @@ const MCP_INSTRUCTIONS: &str = include_str!("../MCP_INSTRUCTIONS.md");
 const TELEMETRY_INTERVAL: Duration = Duration::from_secs(300); // 5 minutes
 const FEEDBACK_DELAY: Duration = Duration::from_secs(600); // 10 minutes
 
-fn main() {
-    let args: Vec<String> = std::env::args().collect();
-    if args.len() > 1 && matches!(args[1].as_str(), "-v" | "-V" | "--version") {
-        println!("{}", env!("CARGO_PKG_VERSION"));
-        return;
-    }
-
-    let rt = tokio::runtime::Builder::new_multi_thread()
-        .enable_all()
-        .build()
-        .expect("failed to build tokio runtime");
-
-    rt.block_on(async {
-        if let Err(err) = run_mcp_server().await {
-            eprintln!("MCP server error: {err:#}");
-            std::process::exit(1);
-        }
-    });
-}
-
-async fn run_mcp_server() -> Result<()> {
+pub async fn run_mcp_server() -> Result<()> {
     let async_stdin = BufReader::new(tokio::io::stdin());
     let stdout = io::stdout();
 
@@ -122,7 +101,7 @@ async fn run_mcp_server() -> Result<()> {
                                     "tools": {}
                                 },
                                 "serverInfo": {
-                                    "name": "webact-mcp",
+                                    "name": "webact",
                                     "version": current_version
                                 },
                                 "instructions": instructions

@@ -2,8 +2,7 @@
 set -e
 
 REPO="kilospark/webact"
-BINARY="webact-mcp"
-CLI_BINARY="webact"
+BINARY="webact"
 
 # Use INSTALL_DIR if set, otherwise default to /usr/local/bin
 if [ -z "$INSTALL_DIR" ]; then
@@ -27,7 +26,6 @@ case "$ARCH" in
 esac
 
 ASSET="${BINARY}-${PLATFORM}-${ARCH_NAME}"
-CLI_ASSET="${CLI_BINARY}-${PLATFORM}-${ARCH_NAME}"
 
 # Get latest release tag if not specified
 if [ -z "$VERSION" ]; then
@@ -52,39 +50,48 @@ mkdir -p "$INSTALL_DIR"
 
 if [ -w "$INSTALL_DIR" ]; then
   mv "$TMPDIR/${ASSET}" "${INSTALL_DIR}/${BINARY}"
-  mv "$TMPDIR/${CLI_ASSET}" "${INSTALL_DIR}/${CLI_BINARY}"
 elif [ -e /dev/tty ] && sudo -v < /dev/tty 2>/dev/null; then
   sudo mv "$TMPDIR/${ASSET}" "${INSTALL_DIR}/${BINARY}" < /dev/tty
-  sudo mv "$TMPDIR/${CLI_ASSET}" "${INSTALL_DIR}/${CLI_BINARY}" < /dev/tty
 else
   INSTALL_DIR="$HOME/.local/bin"
   mkdir -p "$INSTALL_DIR"
   mv "$TMPDIR/${ASSET}" "${INSTALL_DIR}/${BINARY}"
-  mv "$TMPDIR/${CLI_ASSET}" "${INSTALL_DIR}/${CLI_BINARY}"
   echo "No admin access — installing to ${INSTALL_DIR} instead."
 fi
 
-chmod +x "${INSTALL_DIR}/${BINARY}" "${INSTALL_DIR}/${CLI_BINARY}"
+chmod +x "${INSTALL_DIR}/${BINARY}"
 
 echo "Installed ${BINARY} to ${INSTALL_DIR}/${BINARY}"
-echo "Installed ${CLI_BINARY} to ${INSTALL_DIR}/${CLI_BINARY}"
+
+# Clean up old webact-mcp binary if present
+for dir in /usr/local/bin "$HOME/.local/bin"; do
+  if [ -x "$dir/webact-mcp" ]; then
+    if [ -w "$dir" ]; then
+      rm -f "$dir/webact-mcp"
+      echo "Removed old $dir/webact-mcp (now use: webact mcp)"
+    elif sudo -n true 2>/dev/null; then
+      sudo rm -f "$dir/webact-mcp"
+      echo "Removed old $dir/webact-mcp (now use: webact mcp)"
+    else
+      echo "WARNING: old $dir/webact-mcp still exists (remove manually)"
+    fi
+  fi
+done
 
 # Update stale copies in other known locations
 for other_dir in /usr/local/bin "$HOME/.local/bin"; do
   if [ "$other_dir" != "$INSTALL_DIR" ]; then
-    for bin in "$BINARY" "$CLI_BINARY"; do
-      if [ -x "$other_dir/${bin}" ]; then
-        if [ -w "$other_dir" ]; then
-          cp "${INSTALL_DIR}/${bin}" "$other_dir/${bin}"
-          echo "Updated stale copy at ${other_dir}/${bin}"
-        elif sudo -n true 2>/dev/null; then
-          sudo cp "${INSTALL_DIR}/${bin}" "$other_dir/${bin}"
-          echo "Updated stale copy at ${other_dir}/${bin}"
-        else
-          echo "WARNING: stale copy at ${other_dir}/${bin} (update manually or remove)"
-        fi
+    if [ -x "$other_dir/${BINARY}" ]; then
+      if [ -w "$other_dir" ]; then
+        cp "${INSTALL_DIR}/${BINARY}" "$other_dir/${BINARY}"
+        echo "Updated stale copy at ${other_dir}/${BINARY}"
+      elif sudo -n true 2>/dev/null; then
+        sudo cp "${INSTALL_DIR}/${BINARY}" "$other_dir/${BINARY}"
+        echo "Updated stale copy at ${other_dir}/${BINARY}"
+      else
+        echo "WARNING: stale copy at ${other_dir}/${BINARY} (update manually or remove)"
       fi
-    done
+    fi
   fi
 done
 
@@ -150,10 +157,10 @@ add_mcp_config() {
   # Check if mcpServers key exists
   if echo "$content" | grep -q '"mcpServers"'; then
     # Add webact entry to existing mcpServers object
-    updated="$(echo "$content" | sed 's/"mcpServers"[[:space:]]*:[[:space:]]*{/"mcpServers": { "webact": { "command": "'"$escaped_path"'" },/')"
+    updated="$(echo "$content" | sed 's/"mcpServers"[[:space:]]*:[[:space:]]*{/"mcpServers": { "webact": { "command": "'"$escaped_path"'", "args": ["mcp"] },/')"
   else
     # Add mcpServers key to the top-level object
-    updated="$(echo "$content" | sed 's/^{/{ "mcpServers": { "webact": { "command": "'"$escaped_path"'" } },/')"
+    updated="$(echo "$content" | sed 's/^{/{ "mcpServers": { "webact": { "command": "'"$escaped_path"'", "args": ["mcp"] } },/')"
   fi
 
   echo "$updated" > "$config_file"
@@ -170,10 +177,10 @@ if command -v claude >/dev/null 2>&1; then
     echo "  Claude Code: already configured"
     CONFIGURED="${CONFIGURED}Claude Code, "
   else
-    claude mcp add -s user webact "$BINARY_PATH" 2>/dev/null && {
+    claude mcp add -s user webact "$BINARY_PATH" -- mcp 2>/dev/null && {
       echo "  Claude Code: configured"
       CONFIGURED="${CONFIGURED}Claude Code, "
-    } || echo "  Claude Code: failed to configure (try: claude mcp add -s user webact $BINARY_PATH)"
+    } || echo "  Claude Code: failed to configure (try: claude mcp add -s user webact $BINARY_PATH -- mcp)"
   fi
 fi
 
@@ -221,17 +228,17 @@ if command -v codex >/dev/null 2>&1; then
     echo "  Codex: already configured"
     CONFIGURED="${CONFIGURED}Codex, "
   else
-    codex mcp add webact -- "$BINARY_PATH" 2>/dev/null && {
+    codex mcp add webact -- "$BINARY_PATH" mcp 2>/dev/null && {
       echo "  Codex: configured"
       CONFIGURED="${CONFIGURED}Codex, "
-    } || echo "  Codex: failed to configure (try: codex mcp add webact -- $BINARY_PATH)"
+    } || echo "  Codex: failed to configure (try: codex mcp add webact -- $BINARY_PATH mcp)"
   fi
 fi
 
 if [ -z "$CONFIGURED" ]; then
   echo "  No MCP clients detected. Add manually to your client config:"
   echo ""
-  echo '  { "mcpServers": { "webact": { "command": "'"$BINARY_PATH"'" } } }'
+  echo '  { "mcpServers": { "webact": { "command": "'"$BINARY_PATH"'", "args": ["mcp"] } } }'
 else
   echo ""
   echo "Done! Restart your MCP client to start using webact."

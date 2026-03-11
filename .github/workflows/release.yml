@@ -15,16 +15,16 @@ jobs:
         include:
           - target: aarch64-apple-darwin
             os: macos-latest
-            name: webact-mcp-darwin-arm64
+            name: webact-darwin-arm64
           - target: x86_64-apple-darwin
             os: macos-latest
-            name: webact-mcp-darwin-x64
+            name: webact-darwin-x64
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
-            name: webact-mcp-linux-x64
+            name: webact-linux-x64
           - target: aarch64-unknown-linux-gnu
             os: ubuntu-latest
-            name: webact-mcp-linux-arm64
+            name: webact-linux-arm64
 
     runs-on: ${{ matrix.os }}
 
@@ -49,12 +49,9 @@ jobs:
 
       - name: Package
         run: |
-          SUFFIX="${{ matrix.name }}"
-          SUFFIX="${SUFFIX#webact-mcp-}"
-          cp target/${{ matrix.target }}/release/webact-mcp ${{ matrix.name }}
-          cp target/${{ matrix.target }}/release/webact "webact-${SUFFIX}"
-          chmod +x ${{ matrix.name }} "webact-${SUFFIX}"
-          tar czf ${{ matrix.name }}.tar.gz ${{ matrix.name }} "webact-${SUFFIX}"
+          cp target/${{ matrix.target }}/release/webact ${{ matrix.name }}
+          chmod +x ${{ matrix.name }}
+          tar czf ${{ matrix.name }}.tar.gz ${{ matrix.name }}
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
