@@ -178,45 +178,44 @@ pub fn human_size(size: u64) -> String {
 
 pub fn activate_browser(browser_name: &str) -> Result<()> {
     if cfg!(target_os = "macos") {
-        let script = format!(
+        run_osascript(&format!(
             r#"tell application "{name}" to activate
 try
     tell application "{name}" to set miniaturized of window 1 to false
 end try"#,
             name = browser_name
-        );
-        let output = Command::new("osascript")
-            .arg("-e")
-            .arg(script)
-            .output()
-            .context("failed to run osascript")?;
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            bail!("osascript failed: {}", stderr.trim());
-        }
+        ))?;
     }
     Ok(())
 }
 
 pub fn minimize_browser(browser_name: &str) -> Result<()> {
     if cfg!(target_os = "macos") {
-        let script = format!(
+        run_osascript(&format!(
             r#"tell application "{name}"
     if (count of windows) > 0 then
         set miniaturized of every window to true
     end if
 end tell"#,
             name = browser_name
+        ))?;
+    }
+    Ok(())
+}
+
+fn run_osascript(script: &str) -> Result<()> {
+    let output = Command::new("osascript")
+        .arg("-e")
+        .arg(script)
+        .output()
+        .context("osascript not found — cannot control browser windows")?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        bail!(
+            "Cannot control browser window: {}. \
+             If using a custom CHROME_PATH, ensure the app is in /Applications.",
+            stderr.trim()
         );
-        let output = Command::new("osascript")
-            .arg("-e")
-            .arg(script)
-            .output()
-            .context("failed to run osascript")?;
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            bail!("osascript failed: {}", stderr.trim());
-        }
     }
     Ok(())
 }
@@ -540,10 +539,7 @@ pub fn find_free_port() -> Result<u16> {
 pub fn find_browser() -> Option<BrowserCandidate> {
     if let Ok(chrome_path) = env::var("CHROME_PATH") {
         if Path::new(&chrome_path).exists() {
-            let name = Path::new(&chrome_path)
-                .file_name()
-                .map(|n| n.to_string_lossy().to_string())
-                .unwrap_or_else(|| "chrome".to_string());
+            let name = app_name_from_path(&chrome_path);
             return Some(BrowserCandidate {
                 path: chrome_path,
                 name,
@@ -662,6 +658,23 @@ pub fn find_browser() -> Option<BrowserCandidate> {
     }
 
     None
+}
+
+/// Extract macOS app name from a path like `/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`
+fn app_name_from_path(path: &str) -> String {
+    // Try to extract from .app bundle name (e.g., "Google Chrome.app" -> "Google Chrome")
+    if let Some(idx) = path.find(".app") {
+        let before_app = &path[..idx];
+        if let Some(slash) = before_app.rfind('/') {
+            return before_app[slash + 1..].to_string();
+        }
+        return before_app.to_string();
+    }
+    // Fall back to filename
+    Path::new(path)
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_else(|| "chrome".to_string())
 }
 
 pub fn which_bin(bin: &str) -> Option<String> {

@@ -799,6 +799,23 @@ pub async fn fetch_interactive_elements(
                     break;
                 }
             }
+            // Also check if overlays/modals appeared since cache was built
+            if valid {
+                let overlay_check = runtime_evaluate(
+                    cdp,
+                    "document.querySelectorAll('[role=dialog],[role=alertdialog],[role=menu],[role=listbox],.modal,[data-state=open]').length",
+                    true,
+                    false,
+                )
+                .await?;
+                let overlay_count = overlay_check
+                    .pointer("/result/value")
+                    .and_then(Value::as_i64)
+                    .unwrap_or(0);
+                if overlay_count > 0 {
+                    valid = false; // Force re-scan when overlays are present
+                }
+            }
             if valid {
                 let mut state = ctx.load_session_state()?;
                 state.prev_elements = state.current_elements.clone();

@@ -209,7 +209,8 @@ pub const DOM_EXTRACT_TEMPLATE: &str = r#"
 
 pub const READ_EXTRACT_TEMPLATE: &str = r#"
 (function() {
-  const SKIP = new Set(['SCRIPT','STYLE','SVG','NOSCRIPT','LINK','META','HEAD','NAV','FOOTER','ASIDE']);
+  const SKIP = new Set(['SCRIPT','STYLE','SVG','NOSCRIPT','LINK','META','HEAD']);
+  const SKIP_CHROME = new Set(['NAV','FOOTER','ASIDE']);
   const BLOCK = new Set(['P','DIV','SECTION','ARTICLE','H1','H2','H3','H4','H5','H6','LI','TR','BLOCKQUOTE','PRE','DT','DD','FIGCAPTION','HEADER']);
   const HEADING = new Set(['H1','H2','H3','H4','H5','H6']);
 
@@ -228,7 +229,7 @@ pub const READ_EXTRACT_TEMPLATE: &str = r#"
     return null;
   }
 
-  function extract(node, lines, depth) {
+  function extract(node, lines, depth, inMain) {
     if (!node) return;
     if (node.nodeType === 3) {
       const t = node.textContent.replace(/\s+/g, ' ').trim();
@@ -244,6 +245,7 @@ pub const READ_EXTRACT_TEMPLATE: &str = r#"
     if (node.nodeType !== 1) return;
     const tag = node.tagName;
     if (SKIP.has(tag)) return;
+    if (!inMain && SKIP_CHROME.has(tag)) return;
     if (!isVisible(node)) return;
 
     if (HEADING.has(tag)) {
@@ -282,8 +284,8 @@ pub const READ_EXTRACT_TEMPLATE: &str = r#"
     }
 
     const isBlock = BLOCK.has(tag);
-    for (const child of node.childNodes) extract(child, lines, depth + 1);
-    if (node.shadowRoot) for (const child of node.shadowRoot.childNodes) extract(child, lines, depth + 1);
+    for (const child of node.childNodes) extract(child, lines, depth + 1, inMain);
+    if (node.shadowRoot) for (const child of node.shadowRoot.childNodes) extract(child, lines, depth + 1, inMain);
     if (isBlock && lines.length && !lines[lines.length-1].endsWith('\n')) {
       lines[lines.length-1] += '\n';
     }
@@ -292,8 +294,9 @@ pub const READ_EXTRACT_TEMPLATE: &str = r#"
   const root = __WEBACT_ROOT__;
   if (!root) return 'ERROR: Element not found' + (__WEBACT_SELECTOR_SUFFIX__);
   const contentRoot = findMain(root) || root;
+  const usedMain = contentRoot !== root;
   const lines = [];
-  extract(contentRoot, lines, 0);
+  extract(contentRoot, lines, 0, usedMain);
   return lines.join('').replace(/\n{3,}/g, '\n\n').trim();
 })()
 "#;
@@ -418,7 +421,7 @@ pub const AXTREE_INTERACTIVE_SCRIPT: &str = r#"
     return '';
   }
 
-  const selector = 'a,button,input,textarea,select,[role=button],[role=link],[role=textbox],[role=checkbox],[role=radio],[tabindex]:not([tabindex="-1"])';
+  const selector = 'a,button,input,textarea,select,[role=button],[role=link],[role=textbox],[role=checkbox],[role=radio],[role=menuitem],[role=option],[role=tab],[role=switch],[role=slider],[role=combobox],[role=searchbox],[contenteditable=true],[contenteditable="true"],[tabindex]:not([tabindex="-1"])';
   const out = [];
   const seen = new Set();
 

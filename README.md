@@ -12,7 +12,13 @@ No Playwright, no browser automation frameworks. Raw CDP over WebSocket.
 curl -fsSL https://raw.githubusercontent.com/kilospark/webact/main/install.sh | sh
 ```
 
-Downloads the `webact-mcp` binary and auto-configures any detected MCP clients (Claude Desktop, Claude Code, ChatGPT Desktop, Cursor, Windsurf, Cline, Codex).
+Downloads the `webact` binary and auto-configures any detected MCP clients (Claude Desktop, Claude Code, ChatGPT Desktop, Cursor, Windsurf, Cline, Codex).
+
+### Uninstall
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/kilospark/webact/main/uninstall.sh | sh
+```
 
 ### Agent Skill
 
@@ -28,7 +34,8 @@ Works with Claude Code, Cursor, Codex, Windsurf, Cline, Copilot, OpenCode, Goose
 {
   "mcpServers": {
     "webact": {
-      "command": "webact-mcp"
+      "command": "webact",
+      "args": ["mcp"]
     }
   }
 }
@@ -37,7 +44,7 @@ Works with Claude Code, Cursor, Codex, Windsurf, Cline, Copilot, OpenCode, Goose
 For Claude Code:
 
 ```bash
-claude mcp add webact webact-mcp
+claude mcp add -s user webact webact -- mcp
 ```
 
 ## Usage
@@ -198,7 +205,7 @@ Several tools give AI agents browser control on top of Playwright: [agent-browse
 git clone https://github.com/kilospark/webact.git
 cd webact
 cargo build --release
-# Binaries: target/release/webact (CLI), target/release/webact-mcp (MCP server)
+# Binary: target/release/webact (CLI + MCP server via `webact mcp`)
 ```
 
 ## Requirements

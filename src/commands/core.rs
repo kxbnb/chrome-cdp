@@ -367,8 +367,8 @@ pub(super) async fn cmd_read(
     let mut cdp = open_cdp(ctx).await?;
     prepare_cdp(ctx, &mut cdp).await?;
 
-    // Wait for JS-loaded content: no network activity for 500ms, up to 3s total
-    wait_for_network_idle(&mut cdp, 500, 3000).await?;
+    // Wait for JS-loaded content: no network activity for 800ms, up to 5s total
+    wait_for_network_idle(&mut cdp, 800, 5000).await?;
 
     let context_id = get_frame_context_id(ctx, &mut cdp).await?;
     let result = runtime_evaluate_with_context(&mut cdp, &script, true, false, context_id).await?;
@@ -377,6 +377,38 @@ pub(super) async fn cmd_read(
         .and_then(Value::as_str)
         .unwrap_or_default()
         .to_string();
+
+    // If extraction returned too little content, wait longer and retry
+    if output.len() < 200 && selector.is_none() {
+        wait_for_network_idle(&mut cdp, 1000, 5000).await?;
+        let retry = runtime_evaluate_with_context(&mut cdp, &script, true, false, context_id).await?;
+        let retry_text = retry
+            .pointer("/result/value")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        if retry_text.len() > output.len() {
+            output = retry_text.to_string();
+        }
+    }
+
+    // Last resort: fall back to innerText if structured extraction got almost nothing
+    if output.len() < 100 && selector.is_none() {
+        let fallback = runtime_evaluate_with_context(
+            &mut cdp,
+            "document.body?.innerText?.substring(0, 50000) || ''",
+            true,
+            false,
+            context_id,
+        )
+        .await?;
+        let fallback_text = fallback
+            .pointer("/result/value")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        if fallback_text.len() > output.len() {
+            output = fallback_text.to_string();
+        }
+    }
 
     if max_tokens > 0 {
         let char_budget = max_tokens.saturating_mul(4);
