@@ -48,7 +48,7 @@ webact dom
 | `dom [selector] [--tokens=N]` | `webact dom` or `webact dom .results` or `webact dom --tokens=1000` |
 | `axtree [selector] [-i]` | `webact axtree` or `webact axtree -i` |
 | `observe` | `webact observe` |
-| `screenshot [options]` | `webact screenshot` or `webact screenshot --selector=.main --width=800` |
+| `screenshot [options]` | `webact screenshot` or `webact screenshot --ref=3` or `webact screenshot --selector=.main --high` |
 | `fill <sel val ...>` | `webact fill "#email" "user@example.com" "#pass" "secret"` |
 | `pdf [path]` | `webact pdf` or `webact pdf /tmp/page.pdf` |
 | `click <sel\|x,y\|--text>` | `webact click button.submit` or `click 550,197` or `click --text Close` |
@@ -91,7 +91,7 @@ webact dom
 
 **`fill`:** Fill multiple form fields in one call. Pass alternating selector/value pairs: `fill "#email" "user@example.com" "#password" "secret"`. More efficient than multiple `type` calls. Supports ref numbers from `axtree -i`.
 
-**`screenshot` options:** Defaults to JPEG quality 80 for token efficiency. Options: `--format=png` for lossless, `--quality=N` (1-100), `--selector=CSS` to capture only one element, `--width=N` to downscale (e.g., `--width=800`).
+**`screenshot` options:** Expensive (~500+ vision tokens). Defaults to 800px wide JPEG for token efficiency. Use `--ref=N` to crop to a ref number from `axtree -i` (cheapest visual option), `--selector=CSS` to crop to an element, `--high` for full viewport resolution, `--format=png` for lossless, `--quality=N` (1-100), `--pad=N` to control padding around ref/selector crops (default: 48).
 
 **`dialog` behavior:** Sets a one-shot auto-handler. Run BEFORE the action that triggers the dialog.
 
@@ -186,8 +186,9 @@ If Chrome is not running, `launch` starts a new instance automatically and minim
 - `dom <selector>` — scope to a specific part of the page
 - `dom --tokens=N` — cap output to ~N tokens
 - `axtree -i` — interactive elements only (most compact)
-- `screenshot --selector=.main` — capture only one element
-- `screenshot --width=800` — downscale for token efficiency
+- `screenshot --ref=N` — crop to a specific element by ref number (cheapest visual option)
+- `screenshot --selector=.main` — crop to a specific element by CSS selector
+- `screenshot` defaults to 800px wide — use `--high` only when pixel precision is needed
 
 ## Finding Elements
 

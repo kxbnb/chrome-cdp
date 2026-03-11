@@ -466,10 +466,10 @@ pub(super) async fn cmd_viewport(
         )
     })?;
     let (w, h, dpr, mobile) = match width.to_lowercase().as_str() {
-        "mobile" => (375i64, 667i64, 2i64, true),
-        "iphone" => (390, 844, 3, true),
-        "ipad" => (820, 1180, 2, true),
-        "tablet" => (768, 1024, 2, true),
+        "mobile" => (375i64, 667i64, 1i64, true),
+        "iphone" => (390, 844, 1, true),
+        "ipad" => (820, 1180, 1, true),
+        "tablet" => (768, 1024, 1, true),
         "desktop" => (1280, 800, 1, false),
         _ => {
             let w = width

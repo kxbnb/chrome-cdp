@@ -93,7 +93,7 @@ Multiple agents share the same Chrome instance. **Never touch tabs you didn't cr
 | Full page + interaction targets | `text` | Text + numbered refs |
 | Interactive elements only | `axtree -i` | Flat list of clickable/typeable elements |
 | HTML structure/selectors | `dom` | Compact HTML |
-| Visual layout | `screenshot` | JPEG image (default) |
+| Visual layout (expensive) | `screenshot` | JPEG image, 800px wide default. Use ref/selector to crop. |
 | Web search results | `search` | Clean extracted results from Google/Bing/DDG |
 | Multiple pages at once | `readurls` | Combined text from parallel tab reads |
 
@@ -105,8 +105,9 @@ For large SPAs, manage output size:
 - dom with selector — scope to a specific part
 - dom with max_tokens — cap output size
 - axtree interactive — interactive elements only
-- screenshot with selector — capture only one element
-- screenshot with width — downscale for token efficiency (e.g., width: 800)
+- screenshot with ref=N — crop to a specific element by ref number (cheapest visual option)
+- screenshot with selector — crop to a specific element by CSS selector
+- screenshot defaults to 800px wide — use high:true only when pixel precision is needed
 
 ## Finding Elements (priority order)
 

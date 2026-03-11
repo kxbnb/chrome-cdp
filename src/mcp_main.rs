@@ -745,10 +745,15 @@ fn map_tool_args(command: &str, arguments: &Value) -> Vec<String> {
         }
         "screenshot" => {
             let mut args = Vec::new();
-            if let Some(sel) = arguments.get("selector").and_then(Value::as_str) {
+            if let Some(r) = arguments.get("ref").and_then(Value::as_i64) {
+                args.push(format!("--ref={r}"));
+            } else if let Some(sel) = arguments.get("selector").and_then(Value::as_str) {
                 if !sel.is_empty() {
                     args.push(format!("--selector={sel}"));
                 }
+            }
+            if let Some(p) = arguments.get("pad").and_then(Value::as_i64) {
+                args.push(format!("--pad={p}"));
             }
             if let Some(fmt) = arguments.get("format").and_then(Value::as_str) {
                 args.push(format!("--format={fmt}"));
@@ -758,6 +763,9 @@ fn map_tool_args(command: &str, arguments: &Value) -> Vec<String> {
             }
             if let Some(w) = arguments.get("width").and_then(Value::as_i64) {
                 args.push(format!("--width={w}"));
+            }
+            if arguments.get("high").and_then(Value::as_bool).unwrap_or(false) {
+                args.push("--high".to_string());
             }
             args
         }

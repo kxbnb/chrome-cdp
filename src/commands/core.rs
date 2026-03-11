@@ -913,6 +913,9 @@ pub(super) async fn cmd_screenshot(ctx: &mut AppContext, args: &[String]) -> Res
     let mut format = "jpeg".to_string();
     let mut quality: u32 = 80;
     let mut scale_width: Option<u32> = None;
+    let mut ref_id: Option<String> = None;
+    let mut pad: u32 = 48;
+    let mut high_res = false;
 
     for arg in args {
         if let Some(v) = arg.strip_prefix("--selector=") {
@@ -923,7 +926,18 @@ pub(super) async fn cmd_screenshot(ctx: &mut AppContext, args: &[String]) -> Res
             quality = v.parse().unwrap_or(80).clamp(1, 100);
         } else if let Some(v) = arg.strip_prefix("--width=") {
             scale_width = v.parse().ok();
+        } else if let Some(v) = arg.strip_prefix("--ref=") {
+            ref_id = Some(v.to_string());
+        } else if let Some(v) = arg.strip_prefix("--pad=") {
+            pad = v.parse().unwrap_or(48);
+        } else if arg == "--high" {
+            high_res = true;
         }
+    }
+
+    // Resolve ref to selector if provided
+    if let Some(rid) = &ref_id {
+        selector = Some(resolve_selector(ctx, rid)?);
     }
 
     let mut cdp = open_cdp(ctx).await?;
@@ -939,15 +953,22 @@ pub(super) async fn cmd_screenshot(ctx: &mut AppContext, args: &[String]) -> Res
     // If selector given, get element bounding rect for clip region
     if let Some(sel) = &selector {
         let context_id = get_frame_context_id(ctx, &mut cdp).await?;
+        let pad_val = if ref_id.is_some() { pad } else { 0 };
         let script = format!(
             r#"(function() {{
                 const el = document.querySelector({sel});
                 if (!el) return {{ error: 'Element not found: ' + {sel} }};
                 el.scrollIntoView({{ block: 'center', inline: 'center', behavior: 'instant' }});
                 const rect = el.getBoundingClientRect();
-                return {{ x: rect.x, y: rect.y, width: rect.width, height: rect.height }};
+                const pad = {pad};
+                const x = Math.max(0, rect.x - pad);
+                const y = Math.max(0, rect.y - pad);
+                const w = rect.width + pad * 2;
+                const h = rect.height + pad * 2;
+                return {{ x: x, y: y, width: w, height: h }};
             }})()"#,
-            sel = serde_json::to_string(sel.as_str())?
+            sel = serde_json::to_string(sel.as_str())?,
+            pad = pad_val
         );
         let result = runtime_evaluate_with_context(&mut cdp, &script, true, false, context_id).await?;
         let value = result.pointer("/result/value").cloned().unwrap_or(Value::Null);
@@ -965,27 +986,64 @@ pub(super) async fn cmd_screenshot(ctx: &mut AppContext, args: &[String]) -> Res
         }
     }
 
-    // If width given, compute scale factor to achieve target width
-    if let Some(target_w) = scale_width {
-        let vp_result = runtime_evaluate(&mut cdp, "window.innerWidth", true, false).await?;
-        let viewport_w = vp_result
-            .pointer("/result/value")
-            .and_then(Value::as_f64)
-            .unwrap_or(1280.0);
-        let scale = target_w as f64 / viewport_w;
+    // Get viewport dimensions and device pixel ratio
+    let vp_result = runtime_evaluate(
+        &mut cdp,
+        "[window.innerWidth, window.innerHeight, window.devicePixelRatio]",
+        true,
+        false,
+    )
+    .await?;
+    let vp_arr = vp_result
+        .pointer("/result/value")
+        .and_then(Value::as_array);
+    let viewport_w = vp_arr
+        .and_then(|a| a.first())
+        .and_then(Value::as_f64)
+        .unwrap_or(1280.0);
+    let viewport_h = vp_arr
+        .and_then(|a| a.get(1))
+        .and_then(Value::as_f64)
+        .unwrap_or(800.0);
+    let dpr = vp_arr
+        .and_then(|a| a.get(2))
+        .and_then(Value::as_f64)
+        .unwrap_or(1.0);
+
+    // Determine effective scale:
+    // - Explicit --width takes priority
+    // - --high captures at 1x CSS pixels (no downscale)
+    // - Default: scale to 800px wide for token efficiency (~484 tokens vs ~1384)
+    //   Coordinates in the screenshot still match page coordinates via proportional mapping.
+    let has_clip = params.get("clip").is_some();
+    let effective_scale = if let Some(target_w) = scale_width {
+        // Explicit --width
+        Some(target_w as f64 / viewport_w)
+    } else if high_res {
+        // --high: capture at 1x CSS pixels (undo HiDPI if present)
+        if dpr > 1.0 { Some(1.0 / dpr) } else { None }
+    } else if has_clip && ref_id.is_some() {
+        // Ref/selector crop: capture at 1x (element crops are already small)
+        if dpr > 1.0 { Some(1.0 / dpr) } else { None }
+    } else {
+        // Default: scale to 800px wide
+        Some(800.0 / (viewport_w * dpr))
+    };
+
+    if let Some(scale) = effective_scale {
         if let Some(clip) = params.get_mut("clip") {
             clip["scale"] = json!(scale);
         } else {
             params["clip"] = json!({
                 "x": 0, "y": 0,
                 "width": viewport_w,
-                "height": viewport_w * 2.0,
+                "height": viewport_h,
                 "scale": scale
             });
         }
     }
 
-    let result = cdp.send("Page.captureScreenshot", params).await?;
+    let result = cdp.send("Page.captureScreenshot", params.clone()).await?;
     let data = result
         .get("data")
         .and_then(Value::as_str)
@@ -1001,8 +1059,27 @@ pub(super) async fn cmd_screenshot(ctx: &mut AppContext, args: &[String]) -> Res
     let ext = if format == "png" { "png" } else { "jpeg" };
     let out = ctx.tmp_dir().join(format!("webact-screenshot-{sid}.{ext}"));
 
-    fs::write(&out, bytes).with_context(|| format!("failed writing {}", out.display()))?;
+    fs::write(&out, &bytes).with_context(|| format!("failed writing {}", out.display()))?;
+
+    // Estimate token cost and include in output
+    let file_kb = bytes.len() / 1024;
+    let est_tokens = if let Some(clip) = params.get("clip") {
+        let cw = clip.get("width").and_then(Value::as_f64).unwrap_or(viewport_w);
+        let ch = clip.get("height").and_then(Value::as_f64).unwrap_or(viewport_h);
+        let cs = clip.get("scale").and_then(Value::as_f64).unwrap_or(1.0);
+        let pw = (cw * cs) as u64;
+        let ph = (ch * cs) as u64;
+        (pw * ph) / 750
+    } else {
+        let pw = (viewport_w / dpr) as u64;
+        let ph = (viewport_h / dpr) as u64;
+        (pw * ph) / 750
+    };
     out!(ctx, "Screenshot saved to {}", out.display());
+    out!(ctx, "Size: {}KB | Est. vision tokens: ~{}", file_kb, est_tokens);
+    if est_tokens > 500 && ref_id.is_none() && selector.is_none() {
+        out!(ctx, "Tip: Use ref=N, selector, or --width to reduce cost.");
+    }
     cdp.close().await;
     Ok(())
 }
