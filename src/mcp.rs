@@ -349,26 +349,6 @@ async fn handle_tool_call(
     // Dispatch the command
     commands::dispatch(ctx, command, &args).await?;
 
-    // Re-minimize this session's window after tool calls to prevent focus stealing.
-    // Only auto-minimize when the session owns an isolated window (window_id is set).
-    // If the session fell back to a shared tab, skip auto-minimize to avoid
-    // interfering with other agents or user tabs in the shared window.
-    // Skip for activate (user wants the window) and minimize/launch/connect (already handled).
-    if !matches!(command, "activate" | "minimize" | "launch" | "connect") {
-        if let Ok(state) = ctx.load_session_state() {
-            if let Some(wid) = state.window_id {
-                if let Some(tab_id) = state.active_tab_id.as_ref() {
-                    let tabs = crate::get_debug_tabs(ctx).await.unwrap_or_default();
-                    if let Some(tab) = tabs.iter().find(|t| &t.id == tab_id) {
-                        if let Some(ws_url) = &tab.web_socket_debugger_url {
-                            let _ = crate::minimize_window_by_id(ctx, ws_url, wid).await;
-                        }
-                    }
-                }
-            }
-        }
-    }
-
     // Drain the output buffer
     let output = ctx.drain_output();
 
