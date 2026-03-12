@@ -1,8 +1,17 @@
 use super::*;
 
-pub(super) async fn cmd_launch(ctx: &mut AppContext) -> Result<()> {
+pub(super) async fn cmd_launch(ctx: &mut AppContext, args: &[String]) -> Result<()> {
     let user_data_dir = ctx.chrome_profile_dir();
     let port_file = ctx.chrome_port_file();
+
+    // Parse --browser <name> argument
+    let preferred_browser = args.windows(2).find_map(|pair| {
+        if pair[0] == "--browser" {
+            Some(pair[1].clone())
+        } else {
+            None
+        }
+    });
 
     if let Ok(saved) = fs::read_to_string(&port_file) {
         if let Ok(saved_port) = saved.trim().parse::<u16>() {
@@ -25,11 +34,17 @@ pub(super) async fn cmd_launch(ctx: &mut AppContext) -> Result<()> {
         ctx.cdp_port = find_free_port()?;
     }
 
-    let browser = find_browser().ok_or_else(|| {
-        anyhow!(
-            "No Chromium-based browser found. Install Chrome/Edge/Brave/Chromium or set CHROME_PATH."
-        )
-    })?;
+    let browser = if let Some(ref name) = preferred_browser {
+        find_browser_by_name(name).ok_or_else(|| {
+            anyhow!("Browser '{name}' not found. Available: chrome, edge, brave, arc, vivaldi, chromium")
+        })?
+    } else {
+        find_browser().ok_or_else(|| {
+            anyhow!(
+                "No Chromium-based browser found. Install Chrome/Edge/Brave/Chromium or set CHROME_PATH."
+            )
+        })?
+    };
     ctx.launch_browser_name = Some(browser.name.clone());
 
     fs::create_dir_all(&user_data_dir)

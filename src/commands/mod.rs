@@ -12,7 +12,7 @@ use session::*;
 
 pub async fn dispatch(ctx: &mut AppContext, command: &str, args: &[String]) -> Result<()> {
     match command {
-        "launch" => cmd_launch(ctx).await,
+        "launch" => cmd_launch(ctx, args).await,
         "connect" => cmd_connect(ctx).await,
         "navigate" => {
             if args.is_empty() {

@@ -865,8 +865,18 @@ fn map_tool_args(command: &str, arguments: &Value) -> Vec<String> {
             }
             args
         }
+        "launch" => {
+            let mut args = Vec::new();
+            if let Some(browser) = arguments.get("browser").and_then(Value::as_str) {
+                if !browser.is_empty() {
+                    args.push("--browser".to_string());
+                    args.push(browser.to_string());
+                }
+            }
+            args
+        }
         // No-arg commands
-        "launch" | "observe" | "frames" | "tabs" | "close" | "back"
+        "observe" | "frames" | "tabs" | "close" | "back"
         | "forward" | "reload" | "activate" | "minimize" | "unlock" => {
             Vec::new()
         }

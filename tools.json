@@ -1,10 +1,12 @@
 [
   {
     "name": "webact_launch",
-    "description": "Launch Chrome and create a browser session. Run this first before any other command.",
+    "description": "Launch a Chromium browser and create a session. Default: Google Chrome. Use 'browser' to pick another installed browser.",
     "inputSchema": {
       "type": "object",
-      "properties": {},
+      "properties": {
+        "browser": { "type": "string", "description": "Browser to launch: chrome (default), edge, brave, arc, vivaldi, chromium, or canary" }
+      },
       "required": []
     }
   },
