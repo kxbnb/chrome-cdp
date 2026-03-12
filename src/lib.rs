@@ -59,7 +59,7 @@ impl AppContext {
             .timeout(Duration::from_secs(10))
             .build()
             .context("failed to initialize HTTP client")?;
-        Ok(Self {
+        let ctx = Self {
             current_session_id: None,
             cdp_port: DEFAULT_CDP_PORT,
             cdp_host: DEFAULT_CDP_HOST.to_string(),
@@ -70,24 +70,36 @@ impl AppContext {
             tool_counts: std::collections::HashMap::new(),
             session_start: std::time::Instant::now(),
             mcp_mode: false,
-        })
+        };
+        // Ensure persistent data directories exist
+        let _ = fs::create_dir_all(ctx.data_dir());
+        let _ = fs::create_dir_all(ctx.chrome_profile_dir());
+        Ok(ctx)
     }
 
     pub fn drain_output(&mut self) -> String {
         std::mem::take(&mut self.output)
     }
 
+    /// Persistent data directory: ~/.webact/
+    pub fn data_dir(&self) -> PathBuf {
+        dirs::home_dir()
+            .unwrap_or_else(|| PathBuf::from("/tmp"))
+            .join(".webact")
+    }
+
+    /// Ephemeral temp directory (screenshots, PDFs, network captures)
     pub fn tmp_dir(&self) -> PathBuf {
         env::temp_dir()
     }
 
     pub fn last_session_file(&self) -> PathBuf {
-        self.tmp_dir().join("webact-last-session")
+        self.data_dir().join("last-session")
     }
 
     pub fn session_state_file(&self, session_id: &str) -> PathBuf {
-        self.tmp_dir()
-            .join(format!("webact-state-{session_id}.json"))
+        self.data_dir()
+            .join(format!("state-{session_id}.json"))
     }
 
     pub fn command_file(&self, session_id: &str) -> PathBuf {
@@ -96,23 +108,23 @@ impl AppContext {
     }
 
     pub fn chrome_profile_dir(&self) -> PathBuf {
-        self.tmp_dir().join("webact-chrome-profile")
+        self.data_dir().join("profiles").join("default")
     }
 
     pub fn chrome_port_file(&self) -> PathBuf {
-        self.chrome_profile_dir().join(".webact-port")
+        self.data_dir().join("chrome-port")
     }
 
     pub fn action_cache_file(&self) -> PathBuf {
-        self.tmp_dir().join("webact-action-cache.json")
+        self.data_dir().join("action-cache.json")
     }
 
     pub fn tab_locks_file(&self) -> PathBuf {
-        self.tmp_dir().join("webact-tab-locks.json")
+        self.data_dir().join("tab-locks.json")
     }
 
     pub fn default_download_dir(&self) -> PathBuf {
-        self.tmp_dir().join("webact-downloads")
+        self.data_dir().join("downloads")
     }
 
     pub fn network_log_file(&self) -> PathBuf {

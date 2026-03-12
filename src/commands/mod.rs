@@ -316,15 +316,28 @@ pub async fn dispatch(ctx: &mut AppContext, command: &str, args: &[String]) -> R
                 }
                 "set" => {
                     let key = args.get(1).map(String::as_str).unwrap_or("");
-                    let value = args.get(2).map(|s| s == "true").unwrap_or(true);
+                    let raw_value = args.get(2).map(String::as_str).unwrap_or("true");
                     let mut config = crate::config::load_config();
                     match key {
-                        "telemetry" => config.telemetry = value,
-                        "feedback" => config.feedback = value,
-                        _ => bail!("Unknown config key: {key}. Valid keys: telemetry, feedback"),
+                        "telemetry" => config.telemetry = raw_value == "true",
+                        "feedback" => config.feedback = raw_value == "true",
+                        "browser" => {
+                            if raw_value == "false" || raw_value == "none" || raw_value == "default" {
+                                config.browser = None;
+                                crate::config::save_config(&config)?;
+                                out!(ctx, "Cleared browser preference (will use system default)");
+                                return Ok(());
+                            }
+                            // Validate the browser name
+                            if find_browser_by_name(raw_value).is_none() {
+                                bail!("Browser '{raw_value}' not found. Available: chrome, edge, brave, arc, vivaldi, chromium, canary");
+                            }
+                            config.browser = Some(raw_value.to_string());
+                        }
+                        _ => bail!("Unknown config key: {key}. Valid keys: telemetry, feedback, browser"),
                     }
                     crate::config::save_config(&config)?;
-                    out!(ctx, "Set {key} = {value}");
+                    out!(ctx, "Set {key} = {raw_value}");
                     Ok(())
                 }
                 _ => bail!("Usage: config get | config set <key> <true|false>"),

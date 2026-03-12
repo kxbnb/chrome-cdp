@@ -4,14 +4,14 @@ pub(super) async fn cmd_launch(ctx: &mut AppContext, args: &[String]) -> Result<
     let user_data_dir = ctx.chrome_profile_dir();
     let port_file = ctx.chrome_port_file();
 
-    // Parse --browser <name> argument
+    // Parse --browser <name> argument, fall back to config
     let preferred_browser = args.windows(2).find_map(|pair| {
         if pair[0] == "--browser" {
             Some(pair[1].clone())
         } else {
             None
         }
-    });
+    }).or_else(|| crate::config::load_config().browser);
 
     if let Ok(saved) = fs::read_to_string(&port_file) {
         if let Ok(saved_port) = saved.trim().parse::<u16>() {
@@ -46,6 +46,17 @@ pub(super) async fn cmd_launch(ctx: &mut AppContext, args: &[String]) -> Result<
         })?
     };
     ctx.launch_browser_name = Some(browser.name.clone());
+
+    // Migrate legacy profile from $TMPDIR to ~/.webact/profiles/default
+    if !user_data_dir.exists() {
+        let legacy = env::temp_dir().join("webact-chrome-profile");
+        if legacy.is_dir() {
+            fs::create_dir_all(user_data_dir.parent().unwrap())?;
+            if fs::rename(&legacy, &user_data_dir).is_ok() {
+                eprintln!("Migrated Chrome profile to {}", user_data_dir.display());
+            }
+        }
+    }
 
     fs::create_dir_all(&user_data_dir)
         .with_context(|| format!("failed creating {}", user_data_dir.display()))?;

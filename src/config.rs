@@ -9,6 +9,8 @@ pub struct WebactConfig {
     pub telemetry: bool,
     #[serde(default = "default_true")]
     pub feedback: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub browser: Option<String>,
 }
 
 fn default_true() -> bool {
@@ -20,6 +22,7 @@ impl Default for WebactConfig {
         Self {
             telemetry: true,
             feedback: true,
+            browser: None,
         }
     }
 }
