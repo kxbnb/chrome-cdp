@@ -595,5 +595,68 @@
       },
       "required": ["action"]
     }
+  },
+  {
+    "name": "webact_media",
+    "description": "Emulate media features: dark/light mode, print media, reduced motion. Combine multiple options in one call. Use 'reset' to clear all media emulation.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "features": {
+          "type": "array",
+          "items": { "type": "string", "enum": ["dark", "light", "print", "screen", "reduce-motion", "high-contrast", "reset"] },
+          "description": "Media features to emulate"
+        }
+      },
+      "required": ["features"]
+    }
+  },
+  {
+    "name": "webact_animations",
+    "description": "Control page animations. Pause for clean screenshots, resume for normal browsing. Pause also sets prefers-reduced-motion to disable CSS animations.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "action": { "type": "string", "enum": ["pause", "resume", "slow"], "description": "pause: freeze all animations, resume: restore normal playback, slow: 10% speed" }
+      },
+      "required": ["action"]
+    }
+  },
+  {
+    "name": "webact_security",
+    "description": "Control browser security settings. Use ignore-certs for staging/dev sites with self-signed certificates.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "action": { "type": "string", "enum": ["ignore-certs", "strict"], "description": "ignore-certs: accept self-signed/invalid certificates, strict: restore normal certificate validation" }
+      },
+      "required": ["action"]
+    }
+  },
+  {
+    "name": "webact_storage",
+    "description": "Inspect and manage localStorage and sessionStorage for the current page origin.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "action": { "type": "string", "enum": ["get", "set", "remove", "clear"], "description": "get: list storage items, set: set a key, remove: delete a key, clear: clear storage" },
+        "key": { "type": "string", "description": "Storage key (for get/set/remove)" },
+        "value": { "type": "string", "description": "Value to set (for set action)" },
+        "target": { "type": "string", "enum": ["local", "session", "all", "everything"], "description": "For clear: which storage to clear. 'everything' clears storage + cache + cookies + service workers." },
+        "session": { "type": "boolean", "description": "If true, operate on sessionStorage instead of localStorage (for set/remove)" }
+      },
+      "required": ["action"]
+    }
+  },
+  {
+    "name": "webact_sw",
+    "description": "Manage service workers for the current page. Use when a page shows stale content, is stuck on an old version, or has offline cache issues.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "action": { "type": "string", "enum": ["list", "unregister", "update"], "description": "list: show registered workers, unregister: remove all workers, update: trigger update check" }
+      },
+      "required": ["action"]
+    }
   }
 ]

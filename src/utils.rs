@@ -193,9 +193,11 @@ pub fn minimize_browser(browser_name: &str) -> Result<()> {
     if cfg!(target_os = "macos") {
         run_osascript(&format!(
             r#"tell application "{name}"
-    if (count of windows) > 0 then
-        set miniaturized of every window to true
-    end if
+    repeat with w in windows
+        try
+            set miniaturized of w to true
+        end try
+    end repeat
 end tell"#,
             name = browser_name
         ))?;

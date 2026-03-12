@@ -322,9 +322,12 @@ async fn handle_tool_call(
         };
 
         if chrome_reachable {
-            // Chrome is running — create our own isolated session with a fresh tab
+            // Chrome is running — create our own isolated session with a fresh window
             eprintln!("Creating isolated session for this agent...");
             ctx.current_session_id = None; // Clear so connect creates a new one
+            if ctx.launch_browser_name.is_none() {
+                ctx.launch_browser_name = crate::utils::find_browser().map(|b| b.name);
+            }
             ctx.output.clear();
             commands::dispatch(ctx, "connect", &[]).await?;
             let connect_output = ctx.drain_output();
@@ -344,6 +347,16 @@ async fn handle_tool_call(
 
     // Dispatch the command
     commands::dispatch(ctx, command, &args).await?;
+
+    // Re-minimize browser after tool calls to prevent focus stealing on macOS.
+    // Skip for activate (user wants the window) and minimize/launch/connect (already handled).
+    if cfg!(target_os = "macos") && !matches!(command, "activate" | "minimize" | "launch" | "connect") {
+        if let Ok(state) = ctx.load_session_state() {
+            if let Some(name) = state.browser_name.as_ref() {
+                let _ = crate::utils::minimize_browser(name);
+            }
+        }
+    }
 
     // Drain the output buffer
     let output = ctx.drain_output();
@@ -724,6 +737,50 @@ fn map_tool_args(command: &str, arguments: &Value) -> Vec<String> {
                 }
             }
             args
+        }
+        // Media: features array
+        "media" => {
+            if let Some(features) = arguments.get("features").and_then(Value::as_array) {
+                features.iter().filter_map(Value::as_str).map(String::from).collect()
+            } else {
+                vec!["reset".to_string()]
+            }
+        }
+        // Animations: action
+        "animations" => {
+            vec_from_opt_str(arguments, "action")
+        }
+        // Security: action
+        "security" => {
+            vec_from_opt_str(arguments, "action")
+        }
+        // Storage: action, key, value, target, session flag
+        "storage" => {
+            let mut args = Vec::new();
+            if let Some(action) = arguments.get("action").and_then(Value::as_str) {
+                args.push(action.to_string());
+            }
+            if let Some(key) = arguments.get("key").and_then(Value::as_str) {
+                if !key.is_empty() {
+                    args.push(key.to_string());
+                }
+            }
+            if let Some(value) = arguments.get("value").and_then(Value::as_str) {
+                args.push(value.to_string());
+            }
+            if let Some(target) = arguments.get("target").and_then(Value::as_str) {
+                if !target.is_empty() {
+                    args.push(target.to_string());
+                }
+            }
+            if arguments.get("session").and_then(Value::as_bool).unwrap_or(false) {
+                args.push("--session".to_string());
+            }
+            args
+        }
+        // Service worker: action
+        "sw" => {
+            vec_from_opt_str(arguments, "action")
         }
         // Find: query
         "find" => {

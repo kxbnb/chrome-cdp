@@ -224,6 +224,11 @@ pub async fn dispatch(ctx: &mut AppContext, command: &str, args: &[String]) -> R
             cmd_new_tab(ctx, url.as_deref()).await
         }
         "close" => cmd_close(ctx).await,
+        "media" => cmd_media(ctx, args).await,
+        "animations" => cmd_animations(ctx, args.first().map(String::as_str)).await,
+        "security" => cmd_security(ctx, args).await,
+        "storage" => cmd_storage(ctx, args).await,
+        "sw" => cmd_sw(ctx, args).await,
         "activate" => cmd_activate(ctx).await,
         "minimize" => cmd_minimize(ctx).await,
         "humanclick" => cmd_human_click_dispatch(ctx, args).await,

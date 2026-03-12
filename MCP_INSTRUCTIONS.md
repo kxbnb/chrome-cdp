@@ -174,6 +174,26 @@ When webact is available, **always use it instead of WebFetch or WebSearch** for
 - When all else fails, use `eval` to find and `.click()` directly
 - Coordinate clicks from screenshots are a last resort for canvas/iframe-only surfaces
 
+## Troubleshooting SPAs and Stale Pages
+
+When a page shows stale content, is stuck on an old version, or behaves unexpectedly:
+
+1. **`sw unregister`** — remove service workers that cache old content
+2. **`storage clear everything`** — clear all storage, caches, cookies, and service workers for the origin
+3. **`reload`** — force a fresh page load
+
+When a staging/dev site has certificate errors:
+- **`security ignore-certs`** — accept self-signed certificates for this session
+
+When taking screenshots of animated pages:
+- **`animations pause`** — freeze all CSS/JS animations for clean captures
+- **`animations resume`** — restore normal playback when done
+
+When testing dark mode or print layout:
+- **`media dark`** — switch to dark color scheme
+- **`media print`** — switch to print media type
+- **`media reset`** — restore defaults
+
 ## Telemetry
 
 webact collects anonymous usage statistics (which tools were used, session duration, platform). No PII is collected. Opt out by setting `telemetry: false` in `~/.config/webact/webact.json` or calling `config set telemetry false`.

@@ -93,7 +93,19 @@ pub(super) async fn cmd_connect(ctx: &mut AppContext) -> Result<()> {
     let session_id = new_session_id();
     ctx.set_current_session(session_id.clone());
 
-    let new_tab = create_new_tab(ctx, None).await?;
+    // In MCP mode, create a new window for isolation so agents don't
+    // confuse each other's tabs. In CLI mode, use a regular tab.
+    let new_tab = if ctx.mcp_mode {
+        match create_new_window(ctx, None).await {
+            Ok(tab) => tab,
+            Err(e) => {
+                eprintln!("New window failed ({e}), falling back to tab");
+                create_new_tab(ctx, None).await?
+            }
+        }
+    } else {
+        create_new_tab(ctx, None).await?
+    };
 
     let state = SessionState {
         session_id: session_id.clone(),
