@@ -95,34 +95,55 @@ pub(super) async fn cmd_connect(ctx: &mut AppContext) -> Result<()> {
 
     // In MCP mode, create a new window for isolation so agents don't
     // confuse each other's tabs. In CLI mode, use a regular tab.
-    let new_tab = if ctx.mcp_mode {
+    let (new_tab, has_own_window) = if ctx.mcp_mode {
         match create_new_window(ctx, None).await {
-            Ok(tab) => tab,
+            Ok(tab) => (tab, true),
             Err(e) => {
                 eprintln!("New window failed ({e}), falling back to tab");
-                create_new_tab(ctx, None).await?
+                (create_new_tab(ctx, None).await?, false)
             }
         }
     } else {
-        create_new_tab(ctx, None).await?
+        (create_new_tab(ctx, None).await?, false)
     };
+
+    // Only capture window_id when this session owns its own window.
+    // If we fell back to create_new_tab, the window is shared and we must not
+    // auto-minimize it (that would interfere with other agents/user tabs).
+    let window_id = if has_own_window {
+        if let Some(ws_url) = &new_tab.web_socket_debugger_url {
+            get_window_id_for_target(ctx, ws_url).await.ok()
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    // If browser_name wasn't set (attach-to-existing path), detect from debug port
+    if ctx.launch_browser_name.is_none() {
+        ctx.launch_browser_name = detect_browser_from_port(ctx).await;
+    }
 
     let state = SessionState {
         session_id: session_id.clone(),
         active_tab_id: Some(new_tab.id.clone()),
-        tabs: vec![new_tab.id],
+        tabs: vec![new_tab.id.clone()],
         port: Some(ctx.cdp_port),
         host: Some(ctx.cdp_host.clone()),
         browser_name: ctx.launch_browser_name.clone(),
+        window_id,
         ..SessionState::default()
     };
     ctx.save_session_state(&state)?;
     fs::write(ctx.last_session_file(), &session_id)
         .context("failed writing last session pointer")?;
 
-    // Minimize so Chrome doesn't steal focus from the user
-    if let Some(name) = &ctx.launch_browser_name {
-        let _ = minimize_browser(name);
+    // Minimize this session's window so Chrome doesn't steal focus.
+    // Only auto-minimize when we own an isolated window. If we fell back to a
+    // shared tab, app-wide minimize would interfere with other agents/user tabs.
+    if let (Some(wid), Some(ws_url)) = (window_id, &new_tab.web_socket_debugger_url) {
+        let _ = minimize_window_by_id(ctx, ws_url, wid).await;
     }
 
     out!(ctx, "Session: {session_id}");

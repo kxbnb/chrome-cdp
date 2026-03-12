@@ -613,7 +613,7 @@
   },
   {
     "name": "webact_animations",
-    "description": "Control page animations. Pause for clean screenshots, resume for normal browsing. Pause also sets prefers-reduced-motion to disable CSS animations.",
+    "description": "Control page animations via playback rate. Pauses/resumes JS-driven animations. For CSS animations, combine with 'media reduce-motion'.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -635,7 +635,7 @@
   },
   {
     "name": "webact_storage",
-    "description": "Inspect and manage localStorage and sessionStorage for the current page origin.",
+    "description": "Inspect and manage localStorage and sessionStorage for the current page origin. Note: storage is origin-wide — clearing affects all tabs/windows on the same origin.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -650,7 +650,7 @@
   },
   {
     "name": "webact_sw",
-    "description": "Manage service workers for the current page. Use when a page shows stale content, is stuck on an old version, or has offline cache issues.",
+    "description": "Manage service workers for the current page. Use when a page shows stale content or has offline cache issues. Note: service workers are origin-wide — unregistering affects all tabs/windows on the same origin.",
     "inputSchema": {
       "type": "object",
       "properties": {

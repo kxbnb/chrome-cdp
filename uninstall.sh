@@ -135,13 +135,13 @@ if [ "$PLATFORM" = "darwin" ]; then
   APP_SUPPORT="$HOME/Library/Application Support"
   remove_mcp_config "$APP_SUPPORT/Claude/claude_desktop_config.json" "Claude Desktop"
   remove_mcp_config "$APP_SUPPORT/ChatGPT/mcp.json" "ChatGPT Desktop"
-  remove_mcp_config "$HOME/.cursor/mcp.json" "Cursor"
+  remove_mcp_config "$HOME/.cursor/mcp.json" "Cursor / Agent"
   remove_mcp_config "$HOME/.codeium/windsurf/mcp_config.json" "Windsurf"
 elif [ "$PLATFORM" = "linux" ]; then
   XDG_CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}"
   remove_mcp_config "$XDG_CONFIG/Claude/claude_desktop_config.json" "Claude Desktop"
   remove_mcp_config "$XDG_CONFIG/chatgpt/mcp.json" "ChatGPT Desktop"
-  remove_mcp_config "$HOME/.cursor/mcp.json" "Cursor"
+  remove_mcp_config "$HOME/.cursor/mcp.json" "Cursor / Agent"
   remove_mcp_config "$HOME/.codeium/windsurf/mcp_config.json" "Windsurf"
 fi
 

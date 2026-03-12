@@ -136,9 +136,15 @@ CONFIGURED=""
 add_mcp_config() {
   config_file="$1"
   client_name="$2"
+  create_if_missing="${3:-false}"
 
   if [ ! -f "$config_file" ]; then
-    return
+    if [ "$create_if_missing" = "true" ]; then
+      mkdir -p "$(dirname "$config_file")"
+      echo '{}' > "$config_file"
+    else
+      return 0
+    fi
   fi
 
   # Check if webact is already configured
@@ -201,8 +207,13 @@ if [ "$PLATFORM" = "darwin" ]; then
   add_mcp_config "$APP_SUPPORT/Claude/claude_desktop_config.json" "Claude Desktop"
   add_mcp_config "$APP_SUPPORT/ChatGPT/mcp.json" "ChatGPT Desktop"
 
-  # Cursor
-  add_mcp_config "$HOME/.cursor/mcp.json" "Cursor"
+  # Cursor / Cursor Agent (both read ~/.cursor/mcp.json)
+  # Create config if agent CLI is installed even without Cursor IDE
+  if command -v agent >/dev/null 2>&1; then
+    add_mcp_config "$HOME/.cursor/mcp.json" "Cursor / Agent" true
+  else
+    add_mcp_config "$HOME/.cursor/mcp.json" "Cursor"
+  fi
 
   # Windsurf
   add_mcp_config "$HOME/.codeium/windsurf/mcp_config.json" "Windsurf"
@@ -215,8 +226,12 @@ if [ "$PLATFORM" = "linux" ]; then
   add_mcp_config "$XDG_CONFIG/Claude/claude_desktop_config.json" "Claude Desktop"
   add_mcp_config "$XDG_CONFIG/chatgpt/mcp.json" "ChatGPT Desktop"
 
-  # Cursor
-  add_mcp_config "$HOME/.cursor/mcp.json" "Cursor"
+  # Cursor / Cursor Agent
+  if command -v agent >/dev/null 2>&1; then
+    add_mcp_config "$HOME/.cursor/mcp.json" "Cursor / Agent" true
+  else
+    add_mcp_config "$HOME/.cursor/mcp.json" "Cursor"
+  fi
 
   # Windsurf
   add_mcp_config "$HOME/.codeium/windsurf/mcp_config.json" "Windsurf"

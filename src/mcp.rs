@@ -326,7 +326,7 @@ async fn handle_tool_call(
             eprintln!("Creating isolated session for this agent...");
             ctx.current_session_id = None; // Clear so connect creates a new one
             if ctx.launch_browser_name.is_none() {
-                ctx.launch_browser_name = crate::utils::find_browser().map(|b| b.name);
+                ctx.launch_browser_name = crate::detect_browser_from_port(ctx).await;
             }
             ctx.output.clear();
             commands::dispatch(ctx, "connect", &[]).await?;
@@ -348,12 +348,22 @@ async fn handle_tool_call(
     // Dispatch the command
     commands::dispatch(ctx, command, &args).await?;
 
-    // Re-minimize browser after tool calls to prevent focus stealing on macOS.
+    // Re-minimize this session's window after tool calls to prevent focus stealing.
+    // Only auto-minimize when the session owns an isolated window (window_id is set).
+    // If the session fell back to a shared tab, skip auto-minimize to avoid
+    // interfering with other agents or user tabs in the shared window.
     // Skip for activate (user wants the window) and minimize/launch/connect (already handled).
-    if cfg!(target_os = "macos") && !matches!(command, "activate" | "minimize" | "launch" | "connect") {
+    if !matches!(command, "activate" | "minimize" | "launch" | "connect") {
         if let Ok(state) = ctx.load_session_state() {
-            if let Some(name) = state.browser_name.as_ref() {
-                let _ = crate::utils::minimize_browser(name);
+            if let Some(wid) = state.window_id {
+                if let Some(tab_id) = state.active_tab_id.as_ref() {
+                    let tabs = crate::get_debug_tabs(ctx).await.unwrap_or_default();
+                    if let Some(tab) = tabs.iter().find(|t| &t.id == tab_id) {
+                        if let Some(ws_url) = &tab.web_socket_debugger_url {
+                            let _ = crate::minimize_window_by_id(ctx, ws_url, wid).await;
+                        }
+                    }
+                }
             }
         }
     }

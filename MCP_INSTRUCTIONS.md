@@ -186,8 +186,9 @@ When a staging/dev site has certificate errors:
 - **`security ignore-certs`** — accept self-signed certificates for this session
 
 When taking screenshots of animated pages:
-- **`animations pause`** — freeze all CSS/JS animations for clean captures
+- **`animations pause`** — freeze JS animations (sets playback rate to 0)
 - **`animations resume`** — restore normal playback when done
+- For CSS animations, also use **`media reduce-motion`** to disable them
 
 When testing dark mode or print layout:
 - **`media dark`** — switch to dark color scheme

@@ -66,6 +66,28 @@ pub(super) async fn cmd_download(ctx: &mut AppContext, args: &[String]) -> Resul
 
 pub(super) async fn cmd_activate(ctx: &mut AppContext) -> Result<()> {
     let state = ctx.load_session_state()?;
+
+    // Try per-window CDP restore first (scoped to this session's window)
+    if let Some(wid) = state.window_id {
+        if let Some(tab_id) = state.active_tab_id.as_ref() {
+            let tabs = get_debug_tabs(ctx).await.unwrap_or_default();
+            if let Some(tab) = tabs.iter().find(|t| &t.id == tab_id) {
+                if let Some(ws_url) = &tab.web_socket_debugger_url {
+                    if restore_window_by_id(ctx, ws_url, wid).await.is_ok() {
+                        // Still need AppleScript to bring Chrome to foreground
+                        if let Some(name) = state.browser_name.as_ref().or(ctx.launch_browser_name.as_ref()) {
+                            let _ = activate_browser(name);
+                        }
+                        out!(ctx, "Brought session window to front.");
+                        return Ok(());
+                    }
+                    // CDP failed — fall through to app-wide activate
+                }
+            }
+        }
+    }
+
+    // Fallback: app-wide activate
     let browser_name = state
         .browser_name
         .or_else(|| find_browser().map(|b| b.name))
@@ -77,6 +99,24 @@ pub(super) async fn cmd_activate(ctx: &mut AppContext) -> Result<()> {
 
 pub(super) async fn cmd_minimize(ctx: &mut AppContext) -> Result<()> {
     let state = ctx.load_session_state()?;
+
+    // Try per-window CDP minimize first (scoped to this session's window)
+    if let Some(wid) = state.window_id {
+        if let Some(tab_id) = state.active_tab_id.as_ref() {
+            let tabs = get_debug_tabs(ctx).await.unwrap_or_default();
+            if let Some(tab) = tabs.iter().find(|t| &t.id == tab_id) {
+                if let Some(ws_url) = &tab.web_socket_debugger_url {
+                    if minimize_window_by_id(ctx, ws_url, wid).await.is_ok() {
+                        out!(ctx, "Minimized session window.");
+                        return Ok(());
+                    }
+                    // CDP failed — fall through to app-wide minimize
+                }
+            }
+        }
+    }
+
+    // Fallback: app-wide minimize
     let browser_name = state
         .browser_name
         .or_else(|| find_browser().map(|b| b.name))

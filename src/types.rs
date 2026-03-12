@@ -21,6 +21,7 @@ pub struct SessionState {
     pub block_patterns: Option<BlockPatterns>,
     pub download_dir: Option<String>,
     pub zoom_level: Option<f64>,
+    pub window_id: Option<i64>,
 }
 
 #[derive(Debug, Deserialize, Clone)]
