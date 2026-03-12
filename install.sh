@@ -154,18 +154,30 @@ add_mcp_config() {
     return
   fi
 
-  # Read existing content
-  content="$(cat "$config_file")"
+  if command -v python3 >/dev/null 2>&1; then
+    if python3 -c "
+import json, sys
+p, cmd = sys.argv[1], sys.argv[2]
+with open(p) as f:
+    data = json.load(f)
+data.setdefault('mcpServers', {})['webact'] = {'command': cmd, 'args': ['mcp']}
+with open(p, 'w') as f:
+    json.dump(data, f, indent=2)
+    f.write('\n')
+" "$config_file" "$BINARY_PATH" 2>/dev/null; then
+      echo "  $client_name: configured"
+      CONFIGURED="${CONFIGURED}${client_name}, "
+      return
+    fi
+  fi
 
-  # Escape path for sed (handle / and &)
+  # Fallback: sed-based insertion (works for well-formed single-line JSON)
+  content="$(cat "$config_file")"
   escaped_path="$(echo "$BINARY_PATH" | sed 's/[\/&]/\\&/g')"
 
-  # Check if mcpServers key exists
   if echo "$content" | grep -q '"mcpServers"'; then
-    # Add webact entry to existing mcpServers object
     updated="$(echo "$content" | sed 's/"mcpServers"[[:space:]]*:[[:space:]]*{/"mcpServers": { "webact": { "command": "'"$escaped_path"'", "args": ["mcp"] },/')"
   else
-    # Add mcpServers key to the top-level object
     updated="$(echo "$content" | sed 's/^{/{ "mcpServers": { "webact": { "command": "'"$escaped_path"'", "args": ["mcp"] } },/')"
   fi
 
