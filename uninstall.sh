@@ -35,6 +35,24 @@ if command -v npm >/dev/null 2>&1; then
   fi
 fi
 
+# --- Remove data directory (~/.webact/) ---
+
+DATA_DIR="$HOME/.webact"
+if [ -d "$DATA_DIR" ]; then
+  rm -rf "$DATA_DIR"
+  echo "Removed $DATA_DIR"
+  REMOVED="${REMOVED}data-dir, "
+fi
+
+# --- Remove legacy Chrome profile from $TMPDIR ---
+
+LEGACY_PROFILE="${TMPDIR:-/tmp}/webact-chrome-profile"
+if [ -d "$LEGACY_PROFILE" ]; then
+  rm -rf "$LEGACY_PROFILE"
+  echo "Removed legacy profile $LEGACY_PROFILE"
+  REMOVED="${REMOVED}legacy-profile, "
+fi
+
 # --- Remove PATH entry from shell rc ---
 
 for rc in "$HOME/.zshrc" "$HOME/.bashrc" "$HOME/.bash_profile"; do

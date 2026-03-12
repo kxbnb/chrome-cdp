@@ -37,9 +37,12 @@ if [ -z "$VERSION" ]; then
   exit 1
 fi
 
-URL="https://github.com/${REPO}/releases/download/${VERSION}/${ASSET}.tar.gz"
+URL="https://webact.space/download/${VERSION}/${ASSET}.tar.gz"
 
-echo "Installing ${BINARY} ${VERSION} (${PLATFORM}/${ARCH_NAME})..."
+echo ""
+echo "  webact ${VERSION}"
+echo "  ${PLATFORM}/${ARCH_NAME}"
+echo ""
 
 TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TMPDIR"' EXIT

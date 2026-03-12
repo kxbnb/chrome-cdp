@@ -9,7 +9,7 @@ No Playwright, no browser automation frameworks. Raw CDP over WebSocket.
 ### MCP Server (recommended)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/kilospark/webact/main/install.sh | sh
+curl -fsSL https://webact.space/install | sh
 ```
 
 Downloads the `webact` binary and auto-configures any detected MCP clients (Claude Desktop, Claude Code, ChatGPT Desktop, Cursor, Windsurf, Cline, Codex).
@@ -17,7 +17,7 @@ Downloads the `webact` binary and auto-configures any detected MCP clients (Clau
 ### Uninstall
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/kilospark/webact/main/uninstall.sh | sh
+curl -fsSL https://webact.space/uninstall | sh
 ```
 
 ### Agent Skill
