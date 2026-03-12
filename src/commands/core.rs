@@ -78,7 +78,6 @@ pub(super) async fn cmd_launch(ctx: &mut AppContext, args: &[String]) -> Result<
         format!("--user-data-dir={}", user_data_dir.to_string_lossy()),
         "--no-first-run".to_string(),
         "--no-default-browser-check".to_string(),
-        "--no-startup-window".to_string(),
     ];
 
     let mut command = {
