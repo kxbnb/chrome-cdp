@@ -71,6 +71,11 @@ pub async fn run_mcp_server() -> Result<()> {
                 let write_err = match method.as_str() {
                     "initialize" => {
                         let current_version = env!("CARGO_PKG_VERSION");
+                        // Echo back the client's protocol version for compatibility
+                        let client_protocol = request
+                            .pointer("/params/protocolVersion")
+                            .and_then(Value::as_str)
+                            .unwrap_or("2024-11-05");
                         let version_notice = match api_client::check_version(current_version).await {
                             Ok(info) => {
                                 let is_latest = info
@@ -95,7 +100,7 @@ pub async fn run_mcp_server() -> Result<()> {
                             "jsonrpc": "2.0",
                             "id": id,
                             "result": {
-                                "protocolVersion": "2025-11-25",
+                                "protocolVersion": client_protocol,
                                 "capabilities": {
                                     "tools": {}
                                 },
