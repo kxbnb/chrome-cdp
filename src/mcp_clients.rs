@@ -160,11 +160,45 @@ pub fn remove_clients() {
         println!("  Opencode: {status}");
     }
 
+    // -- Clean up data created by webact --
+
+    if let Some(home) = dirs::home_dir() {
+        // Data directory
+        let data_dir = home.join(".webact");
+        if data_dir.is_dir() {
+            if fs::remove_dir_all(&data_dir).is_ok() {
+                any = true;
+                println!("  Removed {}", data_dir.display());
+            }
+        }
+
+        // Legacy Chrome profile
+        let tmp = env::var("TMPDIR").unwrap_or_else(|_| "/tmp".into());
+        let legacy_profile = PathBuf::from(&tmp).join("webact-chrome-profile");
+        if legacy_profile.is_dir() {
+            if fs::remove_dir_all(&legacy_profile).is_ok() {
+                any = true;
+                println!("  Removed {}", legacy_profile.display());
+            }
+        }
+
+        // Claude Code plugin/skills cache
+        for subdir in &["skills/webact", "plugins/cache/webact"] {
+            let stale = home.join(".claude").join(subdir);
+            if stale.is_dir() {
+                if fs::remove_dir_all(&stale).is_ok() {
+                    any = true;
+                    println!("  Removed {}", stale.display());
+                }
+            }
+        }
+    }
+
     println!();
     if any {
-        println!("Done! webact has been removed from MCP clients.");
+        println!("Done! webact has been uninstalled.");
     } else {
-        println!("  No MCP client configs found with webact.");
+        println!("  Nothing to uninstall — no webact configs or data found.");
     }
 }
 
