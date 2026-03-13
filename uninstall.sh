@@ -213,6 +213,44 @@ if command -v codex >/dev/null 2>&1; then
   fi
 fi
 
+# Copilot CLI
+remove_mcp_config "$HOME/.copilot/mcp-config.json" "Copilot CLI"
+
+# Opencode
+OPENCODE_CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/opencode/config.json"
+if [ -f "$OPENCODE_CONFIG" ] && grep -q '"webact"' "$OPENCODE_CONFIG" 2>/dev/null; then
+  if command -v python3 >/dev/null 2>&1; then
+    python3 -c "
+import json, sys
+p = sys.argv[1]
+with open(p) as f:
+    data = json.load(f)
+if 'mcp' in data:
+    data['mcp'].pop('webact', None)
+if 'mcpServers' in data:
+    data['mcpServers'].pop('webact', None)
+with open(p, 'w') as f:
+    json.dump(data, f, indent=2)
+    f.write('\n')
+" "$OPENCODE_CONFIG" 2>/dev/null && {
+      echo "  Opencode: removed"
+      REMOVED="${REMOVED}Opencode, "
+    } || echo "  Opencode: found but could not remove (edit $OPENCODE_CONFIG manually)"
+  else
+    echo "  Opencode: found but could not remove (python3 required)"
+  fi
+fi
+
+# Gemini CLI
+if command -v gemini >/dev/null 2>&1; then
+  if gemini mcp list 2>/dev/null | grep -q 'webact'; then
+    gemini mcp remove -s user webact 2>/dev/null && {
+      echo "  Gemini CLI: removed"
+      REMOVED="${REMOVED}Gemini CLI, "
+    } || echo "  Gemini CLI: failed to remove (try: gemini mcp remove -s user webact)"
+  fi
+fi
+
 echo ""
 if [ -z "$REMOVED" ]; then
   echo "Nothing to uninstall — webact was not found."

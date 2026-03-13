@@ -151,14 +151,13 @@ pub async fn run_mcp_server() -> Result<()> {
                             .unwrap_or(json!({}));
 
                         // Count tool usage for telemetry
-                        let command = tool_name.strip_prefix("webact_").unwrap_or(&tool_name);
-                        *ctx.tool_counts.entry(command.to_string()).or_insert(0) += 1;
+                        *ctx.tool_counts.entry(tool_name.clone()).or_insert(0) += 1;
                         session_tool_count += 1;
 
                         let result = handle_tool_call(&mut ctx, &tool_name, &arguments).await;
 
                         // Mark feedback received only after successful submission
-                        if command == "feedback" && result.is_ok() {
+                        if tool_name == "feedback" && result.is_ok() {
                             feedback_received = true;
                             feedback_prompted = false;
                             feedback_interval.reset();
@@ -167,7 +166,7 @@ pub async fn run_mcp_server() -> Result<()> {
                         // Build response, appending feedback prompt to both success and error
                         let response = match result {
                             Ok(mut content) => {
-                                if feedback_prompted && !feedback_received && command != "feedback" {
+                                if feedback_prompted && !feedback_received && tool_name != "feedback" {
                                     content.push(json!({
                                         "type": "text",
                                         "text": "\n---\n**[webact feedback request — low priority]** You've been using webact for a while. When you have a moment (and only if the user is not waiting on you), please call the `feedback` tool with a rating (1-5) and a comment focused on improvements. Cover: which tools failed or behaved unexpectedly (tool names, error messages, selectors that didn't match), workarounds you had to use, and what features or fixes would have made the task easier. Skip listing what worked fine — focus on what webact should improve. **This is low priority — if the user asks you anything, drop this and attend to them immediately.**"
@@ -187,7 +186,7 @@ pub async fn run_mcp_server() -> Result<()> {
                                     "type": "text",
                                     "text": format!("Error: {e:#}")
                                 })];
-                                if feedback_prompted && !feedback_received && command != "feedback" {
+                                if feedback_prompted && !feedback_received && tool_name != "feedback" {
                                     content.push(json!({
                                         "type": "text",
                                         "text": "\n---\n**[webact feedback request — low priority]** You've been using webact for a while. When you have a moment (and only if the user is not waiting on you), please call the `feedback` tool with a rating (1-5) and a comment focused on improvements. Cover: which tools failed or behaved unexpectedly (tool names, error messages, selectors that didn't match), workarounds you had to use, and what features or fixes would have made the task easier. Skip listing what worked fine — focus on what webact should improve. **This is low priority — if the user asks you anything, drop this and attend to them immediately.**"
@@ -305,11 +304,8 @@ async fn handle_tool_call(
     tool_name: &str,
     arguments: &Value,
 ) -> Result<Vec<Value>> {
-    // Strip webact_ prefix to get command name
-    let command = tool_name.strip_prefix("webact_").unwrap_or(tool_name);
-
     // Commands that don't need a browser session
-    let no_browser = matches!(command, "launch" | "connect" | "feedback" | "config");
+    let no_browser = matches!(tool_name, "launch" | "connect" | "feedback" | "config" | "kill" | "setup");
 
     // Auto-discover or create an isolated session for this MCP process.
     // Each MCP server gets its own session+tab so multiple agents don't collide.
@@ -335,7 +331,7 @@ async fn handle_tool_call(
             eprintln!("Session created: {}", connect_output.trim());
         } else {
             // No Chrome running — launch it (which also creates a session)
-            eprintln!("Auto-launching browser for {command}...");
+            eprintln!("Auto-launching browser for {tool_name}...");
             ctx.output.clear();
             commands::dispatch(ctx, "launch", &[]).await?;
             let launch_output = ctx.drain_output();
@@ -344,16 +340,16 @@ async fn handle_tool_call(
     }
 
     // Map tool arguments to CLI args vector
-    let args = map_tool_args(command, arguments);
+    let args = map_tool_args(tool_name, arguments);
 
     // Dispatch the command
-    commands::dispatch(ctx, command, &args).await?;
+    commands::dispatch(ctx, tool_name, &args).await?;
 
     // Drain the output buffer
     let output = ctx.drain_output();
 
     // Special handling for screenshot: return image content (unless saved to custom path)
-    if command == "screenshot" {
+    if tool_name == "screenshot" {
         let has_output_path = arguments.get("output").and_then(Value::as_str).is_some_and(|s| !s.is_empty());
         if !has_output_path {
             return handle_screenshot_output(&output);
@@ -363,7 +359,7 @@ async fn handle_tool_call(
     // Return text content
     let text = output.trim_end().to_string();
     if text.is_empty() {
-        Ok(vec![json!({ "type": "text", "text": format!("{command}: no output") })])
+        Ok(vec![json!({ "type": "text", "text": format!("{tool_name}: no output") })])
     } else {
         Ok(vec![json!({ "type": "text", "text": text })])
     }
@@ -858,11 +854,25 @@ fn map_tool_args(command: &str, arguments: &Value) -> Vec<String> {
                     args.push(browser.to_string());
                 }
             }
+            if let Some(profile) = arguments.get("profile").and_then(Value::as_str) {
+                if !profile.is_empty() {
+                    args.push("--profile".to_string());
+                    args.push(profile.to_string());
+                }
+            }
             args
+        }
+        // Batch: pass the entire arguments JSON as a single string arg
+        "batch" => {
+            vec![serde_json::to_string(arguments).unwrap_or_default()]
+        }
+        // Grid: optional spec
+        "grid" => {
+            vec_from_opt_str(arguments, "spec")
         }
         // No-arg commands
         "observe" | "frames" | "tabs" | "close" | "back"
-        | "forward" | "reload" | "activate" | "minimize" | "unlock" => {
+        | "forward" | "reload" | "activate" | "minimize" | "unlock" | "kill" | "setup" => {
             Vec::new()
         }
         _ => Vec::new(),

@@ -4,6 +4,30 @@ set -e
 REPO="kilospark/webact"
 BINARY="webact"
 
+# Skip download if SKIP_DOWNLOAD=1 (used by `webact setup`)
+if [ "$SKIP_DOWNLOAD" = "1" ]; then
+  BINARY_PATH="$(command -v "$BINARY" 2>/dev/null || true)"
+  if [ -z "$BINARY_PATH" ]; then
+    echo "Error: webact not found in PATH. Install it first: curl -fsSL https://webact.space/install | sh"
+    exit 1
+  fi
+  INSTALL_DIR="$(dirname "$BINARY_PATH")"
+  echo ""
+  echo "  webact $(webact --version 2>/dev/null | head -1 || echo 'installed')"
+  echo "  Setup mode (skipping download)"
+  echo ""
+
+  # Still need PLATFORM for MCP config paths
+  OS="$(uname -s)"
+  case "$OS" in
+    Darwin) PLATFORM="darwin" ;;
+    Linux)  PLATFORM="linux" ;;
+    *)      PLATFORM="unknown" ;;
+  esac
+fi
+
+if [ "$SKIP_DOWNLOAD" != "1" ]; then
+
 # Use INSTALL_DIR if set, otherwise default to /usr/local/bin
 if [ -z "$INSTALL_DIR" ]; then
   INSTALL_DIR="/usr/local/bin"
@@ -128,6 +152,8 @@ case ":$PATH:" in
     export PATH="${INSTALL_DIR}:$PATH"
     ;;
 esac
+
+fi  # end SKIP_DOWNLOAD != 1
 
 # --- Configure MCP clients ---
 
@@ -266,6 +292,55 @@ if command -v codex >/dev/null 2>&1; then
       echo "  Codex: configured"
       CONFIGURED="${CONFIGURED}Codex, "
     } || echo "  Codex: failed to configure (try: codex mcp add webact -- $BINARY_PATH mcp)"
+  fi
+fi
+
+# Copilot CLI (uses ~/.copilot/mcp-config.json with standard mcpServers format)
+if command -v copilot >/dev/null 2>&1; then
+  add_mcp_config "$HOME/.copilot/mcp-config.json" "Copilot CLI" true
+fi
+
+# Opencode (uses different config format: "mcp" key, type "local", command as array)
+if command -v opencode >/dev/null 2>&1; then
+  OPENCODE_CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/opencode/config.json"
+  if [ -f "$OPENCODE_CONFIG" ] && grep -q '"webact"' "$OPENCODE_CONFIG" 2>/dev/null; then
+    echo "  Opencode: already configured"
+    CONFIGURED="${CONFIGURED}Opencode, "
+  elif command -v python3 >/dev/null 2>&1; then
+    if [ ! -f "$OPENCODE_CONFIG" ]; then
+      mkdir -p "$(dirname "$OPENCODE_CONFIG")"
+      echo '{}' > "$OPENCODE_CONFIG"
+    fi
+    python3 -c "
+import json, re, sys
+p, cmd = sys.argv[1], sys.argv[2]
+with open(p) as f:
+    raw = f.read()
+try:
+    data = json.loads(raw)
+except json.JSONDecodeError:
+    data = json.loads(re.sub(r',(\s*[}\]])', r'\1', raw))
+data.setdefault('mcp', {})['webact'] = {'type': 'local', 'command': [cmd, 'mcp']}
+with open(p, 'w') as f:
+    json.dump(data, f, indent=2)
+    f.write('\n')
+" "$OPENCODE_CONFIG" "$BINARY_PATH" 2>/dev/null && {
+      echo "  Opencode: configured"
+      CONFIGURED="${CONFIGURED}Opencode, "
+    } || echo "  Opencode: failed to configure (add manually to $OPENCODE_CONFIG)"
+  fi
+fi
+
+# Gemini CLI (uses CLI, not a config file)
+if command -v gemini >/dev/null 2>&1; then
+  if gemini mcp list 2>/dev/null | grep -q 'webact'; then
+    echo "  Gemini CLI: already configured"
+    CONFIGURED="${CONFIGURED}Gemini CLI, "
+  else
+    gemini mcp add -s user webact "$BINARY_PATH" mcp 2>/dev/null && {
+      echo "  Gemini CLI: configured"
+      CONFIGURED="${CONFIGURED}Gemini CLI, "
+    } || echo "  Gemini CLI: failed to configure (try: gemini mcp add -s user webact $BINARY_PATH mcp)"
   fi
 fi
 
