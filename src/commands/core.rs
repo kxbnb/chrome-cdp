@@ -88,18 +88,6 @@ pub(super) async fn cmd_launch(ctx: &mut AppContext, args: &[String]) -> Result<
     fs::create_dir_all(&user_data_dir)
         .with_context(|| format!("failed creating {}", user_data_dir.display()))?;
 
-    // Remember the frontmost app so we can reactivate it after Chrome launches.
-    #[cfg(target_os = "macos")]
-    let prev_app = Command::new("osascript")
-        .args(["-e", r#"tell application "System Events" to get name of first process whose frontmost is true"#])
-        .output()
-        .ok()
-        .and_then(|o| if o.status.success() {
-            Some(String::from_utf8_lossy(&o.stdout).trim().to_string())
-        } else {
-            None
-        });
-
     let chrome_args = [
         format!("--remote-debugging-port={}", ctx.cdp_port),
         format!("--user-data-dir={}", user_data_dir.to_string_lossy()),
@@ -139,17 +127,7 @@ pub(super) async fn cmd_launch(ctx: &mut AppContext, args: &[String]) -> Result<
             if profile != "default" {
                 out!(ctx, "Profile: {profile}");
             }
-            let result = cmd_connect(ctx).await;
-
-            // Reactivate the app that had focus before Chrome launched.
-            #[cfg(target_os = "macos")]
-            if let Some(ref app) = prev_app {
-                let _ = Command::new("osascript")
-                    .args(["-e", &format!(r#"tell application "{app}" to activate"#)])
-                    .output();
-            }
-
-            return result;
+            return cmd_connect(ctx).await;
         }
     }
 
@@ -176,6 +154,15 @@ pub(super) async fn cmd_connect(ctx: &mut AppContext) -> Result<()> {
     } else {
         (create_new_tab(ctx, None).await?, false)
     };
+
+    // Immediately minimize the new window so it doesn't steal focus.
+    if has_own_window {
+        if let Some(ws_url) = &new_tab.web_socket_debugger_url {
+            if let Ok(wid) = get_window_id_for_target(ctx, ws_url).await {
+                let _ = minimize_window_by_id(ctx, ws_url, wid).await;
+            }
+        }
+    }
 
     // Only capture window_id when this session owns its own window.
     // If we fell back to create_new_tab, the window is shared and we must not
