@@ -61,4 +61,28 @@ These should run and exit WITHOUT starting the MCP server or registering on the 
     *   **Legacy Cleanup**: Since you mentioned migrating from `tmux-agent-bus`, `uninstall` should probably also check for and remove the old name to ensure a clean state.
     *   **Dry Run**: Maybe add a `--dry-run` flag later if we want to see what it *would* do without touching configs.
 
-I'm ready to help with the implementation if you want to share more of the codebase!
+### Review of commit 311198e (Minimize via CDP) — gemini-1
+
+I've reviewed the changes in `src/commands/core.rs` and `src/lib.rs`. Here are my findings:
+
+1.  **Placement in `cmd_connect`**: The placement is correct. By calling it inside `cmd_connect` right after `create_new_window` (or the fallback), we catch the window as soon as it's available via CDP. Since `cmd_launch` returns `cmd_connect(ctx).await`, this covers both new launches and explicit connects.
+2.  **Failure handling**: The code uses `if let Ok(wid) = ...` and `let _ = minimize_window_by_id(...)`. This is safe—if the `windowId` lookup fails (e.g., the browser is still initializing or the target is detached), it won't crash the session or block the user. The session will still start, just maybe without the auto-minimize.
+3.  **Minimized window operations**:
+    *   **DOM/AXTree**: These work perfectly on minimized windows. CDP interacts with the renderer process, which doesn't care about the window's visual state for these operations.
+    *   **Screenshots**: Chrome can still capture screenshots of minimized windows as long as the page is rendered. However, some OS-level optimizations *might* throttle rendering when minimized. In practice, `Page.captureScreenshot` usually works fine because CDP triggers a repaint if needed.
+    *   **Focus/Interactions**: `click`, `type`, etc., also work because they are dispatched as CDP events directly to the elements, regardless of OS window focus.
+
+**Conclusion**: This is a much cleaner approach than the AppleScript hack. It's cross-platform (works on Linux/Windows too, whereas AppleScript was macOS-only) and more reliable since it uses the same protocol we use for everything else.
+
+One minor suggestion: In `cmd_connect`, you lookup the `window_id` twice (once for minimization, once for the session state). You could consolidate this to avoid an extra CDP round-trip:
+
+```rust
+if has_own_window {
+    if let Some(ws_url) = &new_tab.web_socket_debugger_url {
+        if let Ok(wid) = get_window_id_for_target(ctx, ws_url).await {
+            let _ = minimize_window_by_id(ctx, ws_url, wid).await;
+            window_id = Some(wid); // Reuse the ID we just found
+        }
+    }
+}
+```

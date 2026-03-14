@@ -342,8 +342,15 @@ async fn handle_tool_call(
     // Map tool arguments to CLI args vector
     let args = map_tool_args(tool_name, arguments);
 
-    // Dispatch the command
-    commands::dispatch(ctx, tool_name, &args).await?;
+    // Dispatch the command — on connection failure, reset session so next call auto-recovers
+    if let Err(e) = commands::dispatch(ctx, tool_name, &args).await {
+        let msg = format!("{e:#}");
+        if is_connection_error(&msg) {
+            eprintln!("Connection lost — clearing session for auto-recovery on next call");
+            ctx.current_session_id = None;
+        }
+        return Err(e);
+    }
 
     // Drain the output buffer
     let output = ctx.drain_output();
@@ -395,6 +402,18 @@ fn handle_screenshot_output(output: &str) -> Result<Vec<Value>> {
             "text": output.trim_end()
         }),
     ])
+}
+
+/// Check if an error message indicates a lost CDP/Chrome connection.
+fn is_connection_error(msg: &str) -> bool {
+    let lower = msg.to_lowercase();
+    lower.contains("connection refused")
+        || lower.contains("connection reset")
+        || lower.contains("websocket closed")
+        || lower.contains("closing handshake")
+        || lower.contains("tcp connect error")
+        || lower.contains("broken pipe")
+        || lower.contains("failed to connect cdp")
 }
 
 fn map_tool_args(command: &str, arguments: &Value) -> Vec<String> {
