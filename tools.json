@@ -1167,7 +1167,7 @@
     }
   },
   {
-    "name": "setup",
+    "name": "install",
     "description": "Register webact as an MCP server with all detected clients (Claude Code, Cursor, Windsurf, Claude Desktop, etc.) without re-downloading the binary. Run after installing a new MCP client.",
     "inputSchema": {
       "type": "object",

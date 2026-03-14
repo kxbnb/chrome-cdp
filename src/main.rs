@@ -28,7 +28,7 @@ async fn run() -> Result<()> {
     if command == "mcp" {
         return webact::mcp::run_mcp_server().await;
     }
-    if command == "setup" {
+    if command == "install" {
         webact::mcp_clients::configure_clients();
         return Ok(());
     }
