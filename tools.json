@@ -1,7 +1,7 @@
 [
   {
     "name": "launch",
-    "description": "Launch a Chromium browser and create a session. Default: Google Chrome. Use 'browser' to pick another installed browser. Use 'profile' to launch an isolated browser instance with its own profile.",
+    "description": "Launch a Chromium browser and create a session. Default: Google Chrome. Use 'browser' to pick another installed browser. Use 'profile' to launch an isolated browser instance with its own profile. Use 'headless' for invisible background operation.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -12,6 +12,10 @@
         "profile": {
           "type": "string",
           "description": "Profile name for isolated browser instance. Use 'new' to auto-generate an ID. Default profile is shared and persistent."
+        },
+        "headless": {
+          "type": "boolean",
+          "description": "Launch in headless mode (no visible window). Screenshots and all tools still work."
         }
       },
       "required": []

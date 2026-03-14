@@ -39,7 +39,7 @@ webact dom
 
 | Command | Example |
 |---------|---------|
-| `launch [options]` | `webact launch` or `webact launch --profile shopping-bot` |
+| `launch [options]` | `webact launch` or `webact launch --headless` or `webact launch --profile bot` |
 | `navigate <url>` | `webact navigate https://example.com` |
 | `kill` | `webact kill` |
 | `batch <json>` | `webact batch '{"actions": [{"tool": "click", "target": "..."}]}'` |
@@ -95,6 +95,9 @@ webact dom
 | `close` | `webact close` |
 | `activate` | `webact activate` |
 | `minimize` | `webact minimize` |
+| `resolve <selector>` | `webact resolve a.apply-btn` or `webact resolve 3` |
+| `find <query>` | `webact find "submit button"` |
+| `update` | `webact update` |
 | `config <get\|set> [key] [value]` | `webact config get` or `webact config set telemetry false` |
 
 **`type` vs `keyboard` vs `paste`:** Use `type` to focus a specific input and fill it. Use `keyboard` to type at the current caret position - essential for rich text editors (Slack, Google Docs, Notion) where `type`'s focus call resets the cursor. Use `paste` to insert text via a ClipboardEvent - works with apps that intercept paste (Google Docs, Notion) and is faster than `keyboard` for large text.
@@ -225,7 +228,12 @@ webact launch
 #         Command file: /tmp/webact-command-a1b2c3d4.json  (path varies by OS)
 ```
 
-If Chrome is not running, `launch` starts a new instance automatically and minimizes it (macOS). All subsequent commands auto-discover the session. Use `activate` to bring the browser window to the front when needed.
+If Chrome is not running, `launch` starts a new instance in the background (macOS) or minimized. Use `--headless` for invisible operation. All subsequent commands auto-discover the session. Use `activate` to bring the browser window to the front when needed.
+
+Use `--tab <id>` to target a specific tab from scripts without creating a session:
+```bash
+webact --tab <tab-id> click --text "Submit"
+```
 
 ## Token Efficiency: Escalation Order
 

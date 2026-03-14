@@ -889,6 +889,9 @@ fn map_tool_args(command: &str, arguments: &Value) -> Vec<String> {
                     args.push(profile.to_string());
                 }
             }
+            if arguments.get("headless").and_then(Value::as_bool).unwrap_or(false) {
+                args.push("--headless".to_string());
+            }
             args
         }
         // Batch: pass the entire arguments JSON as a single string arg

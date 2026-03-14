@@ -24,7 +24,8 @@ Control Chrome directly via the Chrome DevTools Protocol. Chrome auto-launches o
 
 **`readurls`:** Read multiple URLs in parallel. Opens each in a new tab, extracts content, returns combined results with URL headers, closes tabs. Use for research tasks comparing multiple pages.
 
-**`config`:** Get or set webact configuration. Settings stored in `~/.config/webact/webact.json`. Use `config set telemetry false` to opt out of anonymous usage stats.
+**`config`:** Get or set webact configuration. Settings stored in `~/.config/webact/webact.json`. Use `config set telemetry false` to opt out of anonymous usage stats. 
+**`resolve`:** Get the navigation target URL of a link or form element without clicking it. Accepts CSS selector or ref number. Returns href, action, formAction, src, onclick, and target attributes. Useful for verifying where a link goes before following it.
 
 **Auto-dismiss:** `navigate` automatically dismisses cookie consent banners and common popups after page load. Use `no_dismiss: true` to skip this behavior.
 
@@ -108,6 +109,7 @@ Stop at the first tool that gives you what you need. Do not use `screenshot` to 
 | HTML structure/selectors | `dom` | Medium |
 | Web search results | `search` | Low |
 | Multiple pages at once | `readurls` | Low per page |
+| Link target URL | `resolve` | Low |
 | Visual of one element | `screenshot ref=N` or `selector=...` | Medium |
 | Full page visual (last resort) | `screenshot` | High (~500+ tokens) |
 
@@ -203,8 +205,11 @@ Use profiles to launch isolated browser instances with separate data:
 - **`launch --profile shopping-bot`** — creates/reuses a named profile with its own browser
 - **`launch --profile new`** — auto-generates a profile ID, returns it for future use
 - **`launch --browser brave --profile test`** — use Brave for this profile
+- **`launch --headless`** — launch in headless mode (no visible window, all tools still work)
 
 Each profile runs its own browser process on its own port. The default profile is persistent and shared — it cannot be killed. Custom profiles can be killed with `kill`, which terminates the browser and cleans up the profile directory.
+
+**Headless mode:** Use `headless: true` in the launch tool. Headless Chrome has no visible window but screenshots, DOM queries, and all interaction tools work normally. Useful for background automation, CI/CD, or when you don't need visual feedback.
 
 ## Batch Actions
 
@@ -239,6 +244,10 @@ Take a screenshot after applying the grid to see coordinate mappings, then click
 ## Setup
 
 Run `setup` after installing a new MCP client to register webact without re-downloading the binary.
+
+## Updates
+
+webact auto-checks for updates every 24 hours. When an update is available, it downloads and replaces the binary in the background. Disable with `config set auto_update false`. MCP clients must be restarted to pick up the new binary.
 
 ## Telemetry
 

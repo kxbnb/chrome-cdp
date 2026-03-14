@@ -10,6 +10,9 @@ pub(super) async fn cmd_launch(ctx: &mut AppContext, args: &[String]) -> Result<
         }
     }).or_else(|| crate::config::load_config().browser);
 
+    // Parse --headless flag
+    let headless = args.iter().any(|a| a == "--headless");
+
     // Parse --profile <name> argument
     let profile = args.windows(2).find_map(|pair| {
         if pair[0] == "--profile" {
@@ -89,14 +92,37 @@ pub(super) async fn cmd_launch(ctx: &mut AppContext, args: &[String]) -> Result<
     fs::create_dir_all(&user_data_dir)
         .with_context(|| format!("failed creating {}", user_data_dir.display()))?;
 
-    let chrome_args = [
+    let mut chrome_args = vec![
         format!("--remote-debugging-port={}", ctx.cdp_port),
         format!("--user-data-dir={}", user_data_dir.to_string_lossy()),
         "--no-first-run".to_string(),
         "--no-default-browser-check".to_string(),
     ];
+    if headless {
+        chrome_args.push("--headless=new".to_string());
+        ctx.headless = true;
+    }
 
-    let mut command = {
+    // On macOS, use `open -gn` to launch without activating and force a new instance.
+    // Falls back to direct binary launch on Linux or non-.app paths.
+    #[cfg(target_os = "macos")]
+    let use_open_gn = !headless && browser.path.contains(".app/Contents/MacOS/");
+    #[cfg(not(target_os = "macos"))]
+    let use_open_gn = false;
+
+    let mut command = if use_open_gn {
+        let app_bundle = browser.path.split(".app/Contents/MacOS/").next().unwrap().to_string() + ".app";
+        let mut cmd = Command::new("open");
+        cmd.arg("-g");  // don't bring to foreground
+        cmd.arg("-n");  // open new instance (don't reuse existing)
+        cmd.arg("-a");
+        cmd.arg(&app_bundle);
+        cmd.arg("--args");
+        for a in &chrome_args {
+            cmd.arg(a);
+        }
+        cmd
+    } else {
         let mut cmd = Command::new(&browser.path);
         for a in &chrome_args {
             cmd.arg(a);
@@ -109,15 +135,21 @@ pub(super) async fn cmd_launch(ctx: &mut AppContext, args: &[String]) -> Result<
         .stdout(Stdio::null())
         .stderr(Stdio::null());
 
-    #[cfg(unix)]
-    {
-        use std::os::unix::process::CommandExt;
-        command.process_group(0);
+    if !use_open_gn {
+        #[cfg(unix)]
+        {
+            use std::os::unix::process::CommandExt;
+            command.process_group(0);
+        }
     }
 
     let _child = command
         .spawn()
         .with_context(|| format!("failed launching browser at {}", browser.path))?;
+
+    if use_open_gn {
+        ctx.launched_background = true;
+    }
 
     // Wait for Chrome to start and expose at least one tab
     let mut ready = false;
@@ -145,7 +177,11 @@ pub(super) async fn cmd_launch(ctx: &mut AppContext, args: &[String]) -> Result<
 
     fs::write(&port_file, ctx.cdp_port.to_string())
         .with_context(|| format!("failed writing {}", port_file.display()))?;
-    out!(ctx, "{} launched successfully.", browser.name);
+    if headless {
+        out!(ctx, "{} launched successfully (headless).", browser.name);
+    } else {
+        out!(ctx, "{} launched successfully.", browser.name);
+    }
     if profile != "default" {
         out!(ctx, "Profile: {profile}");
     }
@@ -154,7 +190,8 @@ pub(super) async fn cmd_launch(ctx: &mut AppContext, args: &[String]) -> Result<
 
     // Close Chrome's default initial window — the agent uses its own window.
     // Only safe when cmd_connect created a dedicated window (not a tab fallback).
-    if has_own_window {
+    // Skip in headless mode — no default window to close.
+    if has_own_window && !ctx.headless {
         for tab_id in &initial_tabs {
             let _ = http_put_text(ctx, &format!("/json/close/{tab_id}")).await;
         }
@@ -182,8 +219,12 @@ pub(super) async fn cmd_connect(ctx: &mut AppContext) -> Result<bool> {
         (create_new_tab(ctx, None).await?, false)
     };
 
-    // Immediately minimize the new window so it doesn't steal focus.
-    if has_own_window {
+    // On macOS with `open -g`, the browser launches without activating — no minimize needed.
+    // On Linux or when launched directly (e.g. CHROME_PATH, non-.app binary),
+    // minimize the new window to avoid stealing focus.
+    let needs_minimize = has_own_window && !ctx.headless && !ctx.launched_background;
+
+    if needs_minimize {
         if let Some(ws_url) = &new_tab.web_socket_debugger_url {
             if let Ok(wid) = get_window_id_for_target(ctx, ws_url).await {
                 let _ = minimize_window_by_id(ctx, ws_url, wid).await;
