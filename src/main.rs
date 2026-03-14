@@ -96,22 +96,30 @@ async fn run() -> Result<()> {
     }
 
     if ctx.override_tab_id.is_some() {
-        // --tab mode: discover Chrome port without requiring a session
-        if ctx.auto_discover_last_session().is_err() {
+        // --tab mode: discover Chrome port only, then create an isolated session
+        // to avoid polluting the original session's state (ref maps, frame, etc.)
+        let port = if let Ok(state_port) = (|| -> Result<u16> {
+            let sid = fs::read_to_string(ctx.last_session_file())?.trim().to_string();
+            let path = ctx.session_state_file(&sid);
+            let content = fs::read_to_string(&path)?;
+            let state: serde_json::Value = serde_json::from_str(&content)?;
+            state.get("port").and_then(|v| v.as_u64()).map(|p| p as u16)
+                .ok_or_else(|| anyhow!("no port"))
+        })() {
+            state_port
+        } else {
             // No session — try reading port from default profile
             let port_file = ctx.chrome_port_file_for("default");
-            if let Ok(port_str) = fs::read_to_string(&port_file) {
-                if let Ok(port) = port_str.trim().parse::<u16>() {
-                    ctx.cdp_port = port;
-                    // Create a temporary session ID so state operations don't fail
-                    ctx.set_current_session(format!("tab-{}", &ctx.override_tab_id.as_ref().unwrap()[..8.min(ctx.override_tab_id.as_ref().unwrap().len())]));
-                } else {
-                    bail!("No running browser found. Run: webact launch");
-                }
-            } else {
-                bail!("No running browser found. Run: webact launch");
-            }
-        }
+            let port_str = fs::read_to_string(&port_file)
+                .context("No running browser found. Run: webact launch")?;
+            port_str.trim().parse::<u16>()
+                .context("No running browser found. Run: webact launch")?
+        };
+        ctx.cdp_port = port;
+        // Isolated session ID — never reuses an existing session's state file
+        let tab_id = ctx.override_tab_id.as_ref().unwrap();
+        let short = &tab_id[..tab_id.len().min(8)];
+        ctx.set_current_session(format!("tab-{short}"));
     } else if !matches!(command.as_str(), "launch" | "connect" | "config" | "update") {
         ctx.auto_discover_last_session()
             .context("No active session. Run: webact launch")?;
