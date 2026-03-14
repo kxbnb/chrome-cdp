@@ -4,7 +4,7 @@ set -e
 BINARY="webact"
 OLD_BINS="webact-mcp webact-rs"
 
-echo "Uninstalling webact..."
+echo "Uninstalling ${BINARY}..."
 
 REMOVED=""
 
@@ -41,18 +41,22 @@ done
 # --- Remove PATH entry from shell rc ---
 
 for rc in "$HOME/.zshrc" "$HOME/.bashrc" "$HOME/.bash_profile"; do
-  if [ -f "$rc" ] && grep -q "# Added by webact installer" "$rc" 2>/dev/null; then
-    sed -i.bak '/# Added by webact installer/{ N; d; }' "$rc" 2>/dev/null || \
-      sed -i '' '/# Added by webact installer/{ N; d; }' "$rc"
-    rm -f "${rc}.bak"
-    echo "Removed PATH entry from $rc"
-    REMOVED="${REMOVED}PATH, "
+  if [ -f "$rc" ]; then
+    for marker in "# Added by webact installer" "# Added by webact-mcp installer"; do
+      if grep -q "$marker" "$rc" 2>/dev/null; then
+        sed -i.bak "/$marker/{ N; d; }" "$rc" 2>/dev/null || \
+          sed -i '' "/$marker/{ N; d; }" "$rc"
+        rm -f "${rc}.bak"
+        echo "Removed PATH entry ($marker) from $rc"
+        REMOVED="${REMOVED}PATH, "
+      fi
+    done
   fi
 done
 
 echo ""
 if [ -z "$REMOVED" ]; then
-  echo "Nothing to uninstall — webact was not found."
+  echo "Nothing to uninstall — ${BINARY} was not found."
 else
-  echo "Done! webact has been uninstalled."
+  echo "Done! ${BINARY} has been uninstalled."
 fi

@@ -3,6 +3,7 @@ set -e
 
 REPO="kilospark/webact"
 BINARY="webact"
+DOMAIN="webact.space"
 
 # Default: user-local install. Use --global for /usr/local/bin.
 if [ "$1" = "--global" ] || [ "$INSTALL_DIR" = "/usr/local/bin" ]; then
@@ -41,12 +42,9 @@ if [ -z "$VERSION" ]; then
   exit 1
 fi
 
-URL="https://webact.space/download/${VERSION}/${ASSET}.tar.gz"
+URL="https://${DOMAIN}/download/${VERSION}/${ASSET}.tar.gz"
 
-echo ""
-echo "  webact ${VERSION}"
-echo "  ${PLATFORM}/${ARCH_NAME}"
-echo ""
+echo "Installing ${BINARY} ${VERSION} (${PLATFORM}/${ARCH_NAME})..."
 
 TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TMPDIR"' EXIT
@@ -65,14 +63,16 @@ chmod +x "${INSTALL_DIR}/${BINARY}"
 
 echo "Installed ${BINARY} to ${INSTALL_DIR}/${BINARY}"
 
-# Clean up old webact-mcp binary if present
+# Clean up old binaries if present
 for dir in /usr/local/bin "$HOME/.local/bin"; do
-  if [ -x "$dir/webact-mcp" ]; then
-    if [ -w "$dir" ]; then
-      rm -f "$dir/webact-mcp"
-      echo "Removed old $dir/webact-mcp (now use: webact mcp)"
+  for old_bin in webact-mcp webact-rs; do
+    if [ -x "$dir/$old_bin" ]; then
+      if [ -w "$dir" ]; then
+        rm -f "$dir/$old_bin"
+        echo "Removed old $dir/$old_bin (now use: ${BINARY})"
+      fi
     fi
-  fi
+  done
 done
 
 # Auto-add install dir to PATH in shell rc if needed
@@ -92,7 +92,7 @@ case ":$PATH:" in
     if [ -n "$RC_FILE" ]; then
       if ! grep -q "${INSTALL_DIR}" "$RC_FILE" 2>/dev/null; then
         echo "" >> "$RC_FILE"
-        echo "# Added by webact installer" >> "$RC_FILE"
+        echo "# Added by ${BINARY} installer" >> "$RC_FILE"
         echo "$PATH_LINE" >> "$RC_FILE"
         echo "Added ${INSTALL_DIR} to PATH in ${RC_FILE}"
       fi
