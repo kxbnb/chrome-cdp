@@ -1274,7 +1274,7 @@ pub async fn fetch_interactive_elements(
             if valid {
                 let overlay_check = runtime_evaluate(
                     cdp,
-                    "document.querySelectorAll('[role=dialog],[role=alertdialog],[role=menu],[role=listbox],.modal,[data-state=open]').length",
+                    "document.querySelectorAll('[role=dialog],[role=alertdialog],[role=menu],[role=listbox],[aria-modal=true],[aria-modal=\"true\"],.modal,.modal-dialog,.drawer,.popover,[data-modal],[data-state=open],[data-headlessui-state~=open]').length",
                     true,
                     false,
                 )

@@ -428,6 +428,11 @@ async fn handle_tool_call(
         }
     }
 
+    // Special handling for batch: extract inline screenshots from results
+    if tool_name == "batch" {
+        return handle_batch_output(&output, arguments);
+    }
+
     // Return text content
     let text = output.trim_end().to_string();
     if text.is_empty() {
@@ -473,6 +478,79 @@ fn handle_screenshot_output(output: &str) -> Result<Vec<Value>> {
             "text": output.trim_end()
         }),
     ])
+}
+
+fn handle_batch_output(output: &str, arguments: &Value) -> Result<Vec<Value>> {
+    let batch_json: Value = match serde_json::from_str(output.trim()) {
+        Ok(v) => v,
+        Err(_) => {
+            // Not valid JSON — return as plain text
+            return Ok(vec![json!({ "type": "text", "text": output.trim_end() })]);
+        }
+    };
+
+    // Collect which action indices are screenshots without an output path
+    let actions = arguments
+        .get("actions")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+
+    let inline_screenshot_indices: std::collections::HashSet<usize> = actions
+        .iter()
+        .enumerate()
+        .filter(|(_, a)| {
+            a.get("tool").and_then(Value::as_str) == Some("screenshot")
+                && !a
+                    .get("output")
+                    .and_then(Value::as_str)
+                    .is_some_and(|s| !s.is_empty())
+        })
+        .map(|(i, _)| i)
+        .collect();
+
+    if inline_screenshot_indices.is_empty() {
+        // No inline screenshots — return batch JSON as-is
+        return Ok(vec![json!({ "type": "text", "text": output.trim_end() })]);
+    }
+
+    // Extract screenshots from results, replace their output with a marker
+    let mut modified_batch = batch_json.clone();
+    let mut images: Vec<Value> = Vec::new();
+
+    if let Some(results) = modified_batch.get_mut("results").and_then(Value::as_array_mut) {
+        for (i, result) in results.iter_mut().enumerate() {
+            if !inline_screenshot_indices.contains(&i) {
+                continue;
+            }
+            if let Some(out_text) = result.get("output").and_then(Value::as_str) {
+                let img_result = handle_screenshot_output(out_text);
+                if let Ok(content_blocks) = img_result {
+                    for block in &content_blocks {
+                        if block.get("type").and_then(Value::as_str) == Some("image") {
+                            let mut img = block.clone();
+                            // Tag the image with the step index for correlation
+                            img.as_object_mut()
+                                .map(|o| o.insert("_step".to_string(), json!(i)));
+                            images.push(img);
+                        }
+                    }
+                }
+                // Mark in batch JSON that screenshot was returned inline
+                if let Some(obj) = result.as_object_mut() {
+                    obj.insert("screenshot_inline".to_string(), json!(true));
+                    obj.remove("output");
+                }
+            }
+        }
+    }
+
+    let mut content = vec![json!({
+        "type": "text",
+        "text": serde_json::to_string_pretty(&modified_batch).unwrap_or_else(|_| output.trim_end().to_string())
+    })];
+    content.extend(images);
+    Ok(content)
 }
 
 /// Check if an error message indicates a lost CDP/Chrome connection.

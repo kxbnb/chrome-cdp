@@ -230,12 +230,13 @@ Use `batch` to execute multiple actions in one call, reducing round-trips:
 
 - Actions run sequentially using the same arg format as individual tools
 - Stops on the first non-optional error, returns all results up to that point
-- **Smart waits:** auto-waits 500ms after successful state-changing actions (`navigate`, `click`, `doubleclick`, `humanclick`, `fill`, `select`, `type`)
+- **Smart waits:** auto-waits 500ms after successful state-changing actions (`navigate`, `click`, `doubleclick`, `humanclick`, `fill`, `select`, `type`). All waits (smart and explicit) sync with browser rendering via double requestAnimationFrame — safe for canvas-heavy apps.
 - **Per-action `wait`:** override smart default with ms delay
 - **Per-action `retries`:** retry a failed action N extra times before giving up
 - **Per-action `retry_delay`:** ms delay between retry attempts
 - **Per-action `optional`:** record the failure and continue to the next action
 - **Global `delay`:** ms between every action (additive with smart waits)
+- **Inline screenshots:** `screenshot` actions without an `output` path return base64 image data as `type: "image"` content blocks alongside the batch JSON result. Use this for multi-screenshot workflows without file I/O.
 
 ## Grid Overlay
 

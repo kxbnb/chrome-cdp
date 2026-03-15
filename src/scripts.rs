@@ -97,6 +97,15 @@ pub const PAGE_BRIEF_SCRIPT: &str = r#"(function() {
   if (inputs.length) r += '\n' + inputs.join(' ');
   if (buttons.length) r += '\n' + buttons.join(' ');
   if (links.length) r += '\nLinks: ' + links.join(', ');
+  const dialogs = qsa('[role=dialog],[role=alertdialog],[aria-modal=true],[aria-modal="true"],.modal,.modal-dialog');
+  const visibleDialogs = dialogs.filter(el => el.offsetParent !== null || getComputedStyle(el).position === 'fixed');
+  if (visibleDialogs.length) {
+    const labels = visibleDialogs.slice(0, 3).map(el => {
+      const lbl = el.getAttribute('aria-label') || el.querySelector('[class*=title],[class*=header],h1,h2,h3')?.textContent?.trim()?.substring(0, 40) || '';
+      return lbl ? 'Dialog: ' + JSON.stringify(lbl) : 'Dialog visible';
+    });
+    r += '\n' + labels.join('\n');
+  }
   const counts = [];
   if (totalInputs > inputs.length) counts.push(totalInputs + ' inputs');
   if (totalButtons > buttons.length) counts.push(totalButtons + ' buttons');

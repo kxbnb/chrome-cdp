@@ -200,21 +200,19 @@ async fn apply_inter_action_wait(
     }
 
     sleep(Duration::from_millis(wait_ms)).await;
-    // When user provides explicit wait or global delay, also sync with
-    // browser rendering. Double requestAnimationFrame ensures at least
-    // one full paint cycle has completed — critical for canvas-based apps
-    // where wall-clock sleep alone doesn't guarantee the screen has updated.
-    if per_action_wait.is_some() || global_delay > 0 {
-        if let Ok(mut cdp) = open_cdp(ctx).await {
-            let _ = runtime_evaluate(
-                &mut cdp,
-                "new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))",
-                true,
-                true,
-            )
-            .await;
-            cdp.close().await;
-        }
+    // Sync with browser rendering after every wait (smart or explicit).
+    // Double requestAnimationFrame ensures at least one full paint cycle
+    // has completed — critical for canvas-based apps where wall-clock
+    // sleep alone doesn't guarantee the screen has updated.
+    if let Ok(mut cdp) = open_cdp(ctx).await {
+        let _ = runtime_evaluate(
+            &mut cdp,
+            "new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))",
+            true,
+            true,
+        )
+        .await;
+        cdp.close().await;
     }
 }
 
