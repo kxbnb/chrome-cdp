@@ -75,7 +75,11 @@ pub(super) async fn cmd_activate(ctx: &mut AppContext) -> Result<()> {
                 if let Some(ws_url) = &tab.web_socket_debugger_url {
                     if restore_window_by_id(ctx, ws_url, wid).await.is_ok() {
                         // Still need AppleScript to bring Chrome to foreground
-                        if let Some(name) = state.browser_name.as_ref().or(ctx.launch_browser_name.as_ref()) {
+                        if let Some(name) = state
+                            .browser_name
+                            .as_ref()
+                            .or(ctx.launch_browser_name.as_ref())
+                        {
                             let _ = activate_browser(name);
                         }
                         out!(ctx, "Brought session window to front.");
@@ -129,11 +133,32 @@ pub(super) async fn cmd_minimize(ctx: &mut AppContext) -> Result<()> {
 pub(super) async fn cmd_human_click_dispatch(ctx: &mut AppContext, args: &[String]) -> Result<()> {
     if let Some((raw_x, raw_y)) = parse_coordinates(args) {
         let (x, y) = adjust_coords_for_zoom(ctx, raw_x, raw_y);
+        let tabs_before = snapshot_tab_ids(ctx).await?;
         let mut cdp = open_cdp(ctx).await?;
         prepare_cdp(ctx, &mut cdp).await?;
         human_click(&mut cdp, x, y).await?;
         out!(ctx, "Human-clicked at ({x}, {y})");
         sleep(Duration::from_millis(150)).await;
+        let adopted = adopt_new_tabs(ctx, &tabs_before, Duration::from_millis(800)).await?;
+        if !adopted.is_empty() {
+            cdp.close().await;
+            let mut adopted_cdp = open_cdp(ctx).await?;
+            prepare_cdp(ctx, &mut adopted_cdp).await?;
+            out!(
+                ctx,
+                "Adopted {} new tab(s); switched to [{}]",
+                adopted.len(),
+                adopted
+                    .iter()
+                    .find(|tab| tab.url.as_deref().is_some_and(|url| url != "about:blank"))
+                    .or_else(|| adopted.first())
+                    .map(|tab| tab.id.as_str())
+                    .unwrap_or("unknown")
+            );
+            out!(ctx, "{}", get_page_brief(&mut adopted_cdp).await?);
+            adopted_cdp.close().await;
+            return Ok(());
+        }
         out!(ctx, "{}", get_page_brief(&mut cdp).await?);
         cdp.close().await;
         return Ok(());
@@ -143,16 +168,38 @@ pub(super) async fn cmd_human_click_dispatch(ctx: &mut AppContext, args: &[Strin
         if text.is_empty() {
             bail!("Usage: webact humanclick --text <text>");
         }
+        let tabs_before = snapshot_tab_ids(ctx).await?;
         let mut cdp = open_cdp(ctx).await?;
         prepare_cdp(ctx, &mut cdp).await?;
         let loc = locate_element_by_text(ctx, &mut cdp, &text).await?;
         human_click(&mut cdp, loc.x, loc.y).await?;
-        out!(ctx,
+        out!(
+            ctx,
             "Human-clicked {} \"{}\" (text match)",
             loc.tag.to_lowercase(),
             loc.text
         );
         sleep(Duration::from_millis(150)).await;
+        let adopted = adopt_new_tabs(ctx, &tabs_before, Duration::from_millis(800)).await?;
+        if !adopted.is_empty() {
+            cdp.close().await;
+            let mut adopted_cdp = open_cdp(ctx).await?;
+            prepare_cdp(ctx, &mut adopted_cdp).await?;
+            out!(
+                ctx,
+                "Adopted {} new tab(s); switched to [{}]",
+                adopted.len(),
+                adopted
+                    .iter()
+                    .find(|tab| tab.url.as_deref().is_some_and(|url| url != "about:blank"))
+                    .or_else(|| adopted.first())
+                    .map(|tab| tab.id.as_str())
+                    .unwrap_or("unknown")
+            );
+            out!(ctx, "{}", get_page_brief(&mut adopted_cdp).await?);
+            adopted_cdp.close().await;
+            return Ok(());
+        }
         out!(ctx, "{}", get_page_brief(&mut cdp).await?);
         cdp.close().await;
         return Ok(());
@@ -162,12 +209,38 @@ pub(super) async fn cmd_human_click_dispatch(ctx: &mut AppContext, args: &[Strin
 }
 
 pub(super) async fn cmd_human_click(ctx: &mut AppContext, selector: &str) -> Result<()> {
+    let tabs_before = snapshot_tab_ids(ctx).await?;
     let mut cdp = open_cdp(ctx).await?;
     prepare_cdp(ctx, &mut cdp).await?;
     let loc = locate_element(ctx, &mut cdp, selector).await?;
     human_click(&mut cdp, loc.x, loc.y).await?;
-    out!(ctx, "Human-clicked {} \"{}\"", loc.tag.to_lowercase(), loc.text);
+    out!(
+        ctx,
+        "Human-clicked {} \"{}\"",
+        loc.tag.to_lowercase(),
+        loc.text
+    );
     sleep(Duration::from_millis(150)).await;
+    let adopted = adopt_new_tabs(ctx, &tabs_before, Duration::from_millis(800)).await?;
+    if !adopted.is_empty() {
+        cdp.close().await;
+        let mut adopted_cdp = open_cdp(ctx).await?;
+        prepare_cdp(ctx, &mut adopted_cdp).await?;
+        out!(
+            ctx,
+            "Adopted {} new tab(s); switched to [{}]",
+            adopted.len(),
+            adopted
+                .iter()
+                .find(|tab| tab.url.as_deref().is_some_and(|url| url != "about:blank"))
+                .or_else(|| adopted.first())
+                .map(|tab| tab.id.as_str())
+                .unwrap_or("unknown")
+        );
+        out!(ctx, "{}", get_page_brief(&mut adopted_cdp).await?);
+        adopted_cdp.close().await;
+        return Ok(());
+    }
     out!(ctx, "{}", get_page_brief(&mut cdp).await?);
     cdp.close().await;
     Ok(())
@@ -189,7 +262,12 @@ pub(super) async fn cmd_human_type(ctx: &mut AppContext, selector: &str, text: &
         bail!("{err}");
     }
     human_type_text(&mut cdp, text, false).await?;
-    out!(ctx, "Human-typed \"{}\" into {}", truncate(text, 50), selector);
+    out!(
+        ctx,
+        "Human-typed \"{}\" into {}",
+        truncate(text, 50),
+        selector
+    );
     cdp.close().await;
     Ok(())
 }

@@ -27,7 +27,8 @@ pub(crate) async fn cmd_focus(ctx: &mut AppContext, selector: &str) -> Result<()
     if let Some(err) = val.get("error").and_then(Value::as_str) {
         bail!("{err}");
     }
-    out!(ctx,
+    out!(
+        ctx,
         "Focused <{}> \"{}\"",
         val.get("tag")
             .and_then(Value::as_str)
@@ -74,7 +75,8 @@ pub(crate) async fn cmd_clear(ctx: &mut AppContext, selector: &str) -> Result<()
     if let Some(err) = val.get("error").and_then(Value::as_str) {
         bail!("{err}");
     }
-    out!(ctx,
+    out!(
+        ctx,
         "Cleared {} {}",
         val.get("tag")
             .and_then(Value::as_str)
@@ -250,7 +252,8 @@ pub(crate) async fn cmd_upload(
     )
     .await?;
 
-    out!(ctx,
+    out!(
+        ctx,
         "Uploaded {} file(s) to {}: {}",
         resolved.len(),
         selector,
@@ -279,33 +282,7 @@ pub(crate) async fn cmd_fill(ctx: &mut AppContext, fields: &[(String, String)]) 
     let mut filled = 0usize;
     for (selector, value) in fields {
         let resolved = resolve_selector(ctx, selector)?;
-        let focus_script = format!(
-            "(function() {{ const el = document.querySelector({sel}); if (!el) return {{ error: 'Element not found: ' + {sel} }}; el.focus(); if (el.select) el.select(); return {{ ok: true }}; }})()",
-            sel = serde_json::to_string(&resolved)?
-        );
-        let focus_result =
-            runtime_evaluate_with_context(&mut cdp, &focus_script, true, false, context_id)
-                .await?;
-        if let Some(err) = focus_result
-            .pointer("/result/value/error")
-            .and_then(Value::as_str)
-        {
-            bail!("{err}");
-        }
-
-        for ch in value.chars() {
-            let char_s = ch.to_string();
-            cdp.send(
-                "Input.dispatchKeyEvent",
-                json!({ "type": "keyDown", "text": char_s, "unmodifiedText": char_s }),
-            )
-            .await?;
-            cdp.send(
-                "Input.dispatchKeyEvent",
-                json!({ "type": "keyUp", "text": char_s, "unmodifiedText": char_s }),
-            )
-            .await?;
-        }
+        type_text_verified(&mut cdp, context_id, &resolved, value).await?;
         filled += 1;
     }
 
@@ -333,12 +310,14 @@ pub(crate) async fn cmd_dialog(
     });
     ctx.save_session_state(&state)?;
     if prompt_text.is_empty() {
-        out!(ctx,
+        out!(
+            ctx,
             "Dialog handler set: will {} the next dialog",
             if accept { "accept" } else { "dismiss" }
         );
     } else {
-        out!(ctx,
+        out!(
+            ctx,
             "Dialog handler set: will {} the next dialog with text: \"{}\"",
             if accept { "accept" } else { "dismiss" },
             prompt_text

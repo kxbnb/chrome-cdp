@@ -107,8 +107,7 @@ impl AppContext {
     }
 
     pub fn session_state_file(&self, session_id: &str) -> PathBuf {
-        self.data_dir()
-            .join(format!("state-{session_id}.json"))
+        self.data_dir().join(format!("state-{session_id}.json"))
     }
 
     pub fn command_file(&self, session_id: &str) -> PathBuf {
@@ -256,9 +255,7 @@ impl CdpClient {
                 .ok_or_else(|| anyhow!("WebSocket closed"))?;
 
             // Auto-handle JS dialogs at the CDP protocol level
-            if value.get("method").and_then(Value::as_str)
-                == Some("Page.javascriptDialogOpening")
-            {
+            if value.get("method").and_then(Value::as_str) == Some("Page.javascriptDialogOpening") {
                 if let Some((accept, prompt_text)) = &self.auto_dialog {
                     let dialog_id = self.next_id;
                     self.next_id += 1;
@@ -523,7 +520,11 @@ pub async fn get_window_id_for_target(_ctx: &AppContext, tab_ws_url: &str) -> Re
 }
 
 /// Minimize a specific Chrome window by its CDP window ID.
-pub async fn minimize_window_by_id(_ctx: &AppContext, tab_ws_url: &str, window_id: i64) -> Result<()> {
+pub async fn minimize_window_by_id(
+    _ctx: &AppContext,
+    tab_ws_url: &str,
+    window_id: i64,
+) -> Result<()> {
     let mut cdp = CdpClient::connect(tab_ws_url).await?;
     cdp.send(
         "Browser.setWindowBounds",
@@ -535,7 +536,11 @@ pub async fn minimize_window_by_id(_ctx: &AppContext, tab_ws_url: &str, window_i
 }
 
 /// Restore (un-minimize) a specific Chrome window by its CDP window ID.
-pub async fn restore_window_by_id(_ctx: &AppContext, tab_ws_url: &str, window_id: i64) -> Result<()> {
+pub async fn restore_window_by_id(
+    _ctx: &AppContext,
+    tab_ws_url: &str,
+    window_id: i64,
+) -> Result<()> {
     let mut cdp = CdpClient::connect(tab_ws_url).await?;
     cdp.send(
         "Browser.setWindowBounds",
@@ -696,7 +701,11 @@ pub async fn wait_for_ready_state_complete(cdp: &mut CdpClient, timeout: Duratio
 
 /// Wait until no network requests are in-flight for `quiet_ms`.
 /// Gives up after `timeout_ms` total and proceeds anyway.
-pub async fn wait_for_network_idle(cdp: &mut CdpClient, quiet_ms: u64, timeout_ms: u64) -> Result<()> {
+pub async fn wait_for_network_idle(
+    cdp: &mut CdpClient,
+    quiet_ms: u64,
+    timeout_ms: u64,
+) -> Result<()> {
     cdp.send("Network.enable", json!({})).await?;
 
     let mut inflight: i32 = 0;
@@ -721,7 +730,11 @@ pub async fn wait_for_network_idle(cdp: &mut CdpClient, quiet_ms: u64, timeout_m
         if event.is_null() {
             continue;
         }
-        match event.get("method").and_then(Value::as_str).unwrap_or_default() {
+        match event
+            .get("method")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+        {
             "Network.requestWillBeSent" => {
                 inflight += 1;
                 last_activity = Instant::now();
@@ -826,6 +839,29 @@ pub async fn locate_element_by_text(
           }}
         }}
 
+        function isInteractive(el) {{
+          if (!el) return false;
+          return ['A','BUTTON','INPUT','SELECT','TEXTAREA','SUMMARY'].includes(el.tagName)
+            || el.getAttribute('role') === 'button'
+            || el.getAttribute('role') === 'link'
+            || el.getAttribute('role') === 'menuitem'
+            || el.getAttribute('role') === 'tab';
+        }}
+
+        function actionableAncestor(el) {{
+          let cur = el;
+          for (let depth = 0; cur && depth < 5; depth += 1) {{
+            if (isInteractive(cur)) return cur;
+            const parent = cur.parentNode;
+            if (parent instanceof ShadowRoot) {{
+              cur = parent.host;
+            }} else {{
+              cur = cur.parentElement;
+            }}
+          }}
+          return el;
+        }}
+
         for (const el of allElements(document)) {{
           if (el.offsetParent === null && el.tagName !== 'BODY' && el.tagName !== 'HTML') {{
             const s = getComputedStyle(el);
@@ -837,19 +873,16 @@ pub async fn locate_element_by_text(
           const exact = tl === lower;
           const has = tl.includes(lower);
           if (!exact && !has) continue;
-          const isInteractive = ['A','BUTTON','INPUT','SELECT','TEXTAREA','SUMMARY'].includes(el.tagName)
-            || el.getAttribute('role') === 'button'
-            || el.getAttribute('role') === 'link'
-            || el.getAttribute('role') === 'menuitem'
-            || el.getAttribute('role') === 'tab';
+          const clickEl = isInteractive(el) ? el : actionableAncestor(el);
+          const interactive = isInteractive(clickEl);
           const len = t.length;
           if (exact) {{
-            if (!best || !best.exact || (isInteractive && !best.interactive) || (isInteractive === best.interactive && len < bestLen)) {{
-              best = {{ el, exact: true, interactive: isInteractive }}; bestLen = len;
+            if (!best || !best.exact || (interactive && !best.interactive) || (interactive === best.interactive && len < bestLen)) {{
+              best = {{ el: clickEl, exact: true, interactive, matchedText: t }}; bestLen = len;
             }}
           }} else if (has && !(best && best.exact)) {{
-            if (!best || (isInteractive && !best.interactive) || (isInteractive === best.interactive && len < bestLen)) {{
-              best = {{ el, exact: false, interactive: isInteractive }}; bestLen = len;
+            if (!best || (interactive && !best.interactive) || (interactive === best.interactive && len < bestLen)) {{
+              best = {{ el: clickEl, exact: false, interactive, matchedText: t }}; bestLen = len;
             }}
           }}
         }}
@@ -862,7 +895,7 @@ pub async fn locate_element_by_text(
           x: rect.left + rect.width / 2,
           y: rect.top + rect.height / 2,
           tag: el.tagName,
-          text: (el.textContent || '').substring(0, 50).trim()
+          text: (best.matchedText || el.textContent || '').substring(0, 50).trim()
         }};
       }})()
     "#,
@@ -896,6 +929,290 @@ pub async fn locate_element_by_text(
         .unwrap_or_default()
         .to_string();
     Ok(LocatedElement { x, y, tag, text })
+}
+
+pub async fn snapshot_tab_ids(ctx: &AppContext) -> Result<HashSet<String>> {
+    Ok(get_debug_tabs(ctx)
+        .await?
+        .into_iter()
+        .map(|tab| tab.id)
+        .collect())
+}
+
+pub async fn adopt_new_tabs(
+    ctx: &mut AppContext,
+    before: &HashSet<String>,
+    timeout: Duration,
+) -> Result<Vec<DebugTab>> {
+    let expected_window = ctx.load_session_state()?.window_id;
+    let deadline = Instant::now() + timeout;
+
+    loop {
+        let tabs = get_debug_tabs(ctx).await?;
+        let mut new_tabs = tabs
+            .into_iter()
+            .filter(|tab| !before.contains(&tab.id))
+            .collect::<Vec<_>>();
+
+        if let Some(window_id) = expected_window {
+            let mut same_window = Vec::new();
+            for tab in new_tabs {
+                let Some(ws_url) = tab.web_socket_debugger_url.as_deref() else {
+                    continue;
+                };
+                if get_window_id_for_target(ctx, ws_url).await.ok() == Some(window_id) {
+                    same_window.push(tab);
+                }
+            }
+            new_tabs = same_window;
+        } else if new_tabs.len() > 1 {
+            new_tabs.clear();
+        }
+
+        if !new_tabs.is_empty() {
+            let mut state = ctx.load_session_state()?;
+            for tab in &new_tabs {
+                if !state.tabs.iter().any(|id| id == &tab.id) {
+                    state.tabs.push(tab.id.clone());
+                }
+            }
+
+            let active = new_tabs
+                .iter()
+                .find(|tab| tab.url.as_deref().is_some_and(|url| url != "about:blank"))
+                .or_else(|| new_tabs.first())
+                .map(|tab| tab.id.clone());
+
+            if let Some(active_tab_id) = active {
+                state.active_tab_id = Some(active_tab_id);
+            }
+            ctx.save_session_state(&state)?;
+            return Ok(new_tabs);
+        }
+
+        if Instant::now() >= deadline {
+            return Ok(Vec::new());
+        }
+        sleep(Duration::from_millis(100)).await;
+    }
+}
+
+fn deep_query_expr(selector: &str) -> Result<String> {
+    Ok(format!(
+        r#"(function() {{
+          const sel = {sel};
+          function find(root) {{
+            try {{
+              const direct = root.querySelector(sel);
+              if (direct) return direct;
+            }} catch (e) {{
+              return {{ error: 'Invalid CSS selector: ' + sel + '. Use CSS selectors (#id, .class, tag).' }};
+            }}
+            for (const el of root.querySelectorAll('*')) {{
+              if (el.shadowRoot) {{
+                const found = find(el.shadowRoot);
+                if (found) return found;
+              }}
+            }}
+            return null;
+          }}
+          return find(document);
+        }})()"#,
+        sel = serde_json::to_string(selector)?
+    ))
+}
+
+pub async fn focus_editable_element(
+    cdp: &mut CdpClient,
+    context_id: Option<i64>,
+    selector: &str,
+    select_existing: bool,
+) -> Result<()> {
+    let query = deep_query_expr(selector)?;
+    let script = format!(
+        r#"(function() {{
+          const found = {query};
+          if (found && found.error) return found;
+          const el = found;
+          if (!el) return {{ error: 'Element not found: ' + {sel} }};
+          el.focus();
+          if ({select_existing} && typeof el.select === 'function' && el.type !== 'password') {{
+            el.select();
+          }}
+          return {{ ok: true }};
+        }})()"#,
+        query = query,
+        sel = serde_json::to_string(selector)?,
+        select_existing = if select_existing { "true" } else { "false" }
+    );
+    let result = runtime_evaluate_with_context(cdp, &script, true, false, context_id).await?;
+    if let Some(err) = result
+        .pointer("/result/value/error")
+        .and_then(Value::as_str)
+    {
+        bail!("{err}");
+    }
+    Ok(())
+}
+
+pub async fn clear_editable_element(
+    cdp: &mut CdpClient,
+    context_id: Option<i64>,
+    selector: &str,
+) -> Result<()> {
+    let query = deep_query_expr(selector)?;
+    let script = format!(
+        r#"(function() {{
+          const found = {query};
+          if (found && found.error) return found;
+          const el = found;
+          if (!el) return {{ error: 'Element not found: ' + {sel} }};
+          el.focus();
+          if ('value' in el) {{
+            el.value = '';
+            el.dispatchEvent(new Event('input', {{ bubbles: true }}));
+            el.dispatchEvent(new Event('change', {{ bubbles: true }}));
+          }} else if (el.isContentEditable) {{
+            el.textContent = '';
+            el.dispatchEvent(new Event('input', {{ bubbles: true }}));
+          }}
+          return {{ ok: true }};
+        }})()"#,
+        query = query,
+        sel = serde_json::to_string(selector)?
+    );
+    let result = runtime_evaluate_with_context(cdp, &script, true, false, context_id).await?;
+    if let Some(err) = result
+        .pointer("/result/value/error")
+        .and_then(Value::as_str)
+    {
+        bail!("{err}");
+    }
+    Ok(())
+}
+
+pub async fn editable_element_value(
+    cdp: &mut CdpClient,
+    context_id: Option<i64>,
+    selector: &str,
+) -> Result<String> {
+    let query = deep_query_expr(selector)?;
+    let script = format!(
+        r#"(function() {{
+          const found = {query};
+          if (found && found.error) return found;
+          const el = found;
+          if (!el) return {{ error: 'Element not found: ' + {sel} }};
+          const value = 'value' in el
+            ? String(el.value || '')
+            : (el.isContentEditable ? String(el.textContent || '') : String(el.textContent || ''));
+          return {{ value }};
+        }})()"#,
+        query = query,
+        sel = serde_json::to_string(selector)?
+    );
+    let result = runtime_evaluate_with_context(cdp, &script, true, false, context_id).await?;
+    if let Some(err) = result
+        .pointer("/result/value/error")
+        .and_then(Value::as_str)
+    {
+        bail!("{err}");
+    }
+    Ok(result
+        .pointer("/result/value/value")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string())
+}
+
+async fn type_text_via_key_events(cdp: &mut CdpClient, text: &str) -> Result<()> {
+    for ch in text.chars() {
+        let char_s = ch.to_string();
+        cdp.send(
+            "Input.dispatchKeyEvent",
+            json!({ "type": "keyDown", "text": char_s, "unmodifiedText": char_s }),
+        )
+        .await?;
+        cdp.send(
+            "Input.dispatchKeyEvent",
+            json!({ "type": "keyUp", "text": ch.to_string(), "unmodifiedText": ch.to_string() }),
+        )
+        .await?;
+        sleep(Duration::from_millis(12)).await;
+    }
+    Ok(())
+}
+
+pub async fn type_text_verified(
+    cdp: &mut CdpClient,
+    context_id: Option<i64>,
+    selector: &str,
+    text: &str,
+) -> Result<()> {
+    focus_editable_element(cdp, context_id, selector, true).await?;
+    type_text_via_key_events(cdp, text).await?;
+    if editable_element_value(cdp, context_id, selector).await? == text {
+        return Ok(());
+    }
+
+    clear_editable_element(cdp, context_id, selector).await?;
+    focus_editable_element(cdp, context_id, selector, false).await?;
+    cdp.send("Input.insertText", json!({ "text": text }))
+        .await?;
+    sleep(Duration::from_millis(50)).await;
+    if editable_element_value(cdp, context_id, selector).await? == text {
+        return Ok(());
+    }
+
+    let query = deep_query_expr(selector)?;
+    let set_script = format!(
+        r#"(function() {{
+          const found = {query};
+          if (found && found.error) return found;
+          const el = found;
+          if (!el) return {{ error: 'Element not found: ' + {sel} }};
+          if ('value' in el) {{
+            const proto = el.tagName === 'TEXTAREA'
+              ? HTMLTextAreaElement.prototype
+              : HTMLInputElement.prototype;
+            const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+            if (setter) setter.call(el, {text});
+            else el.value = {text};
+            el.dispatchEvent(new InputEvent('input', {{
+              bubbles: true,
+              inputType: 'insertText',
+              data: {text}
+            }}));
+            el.dispatchEvent(new Event('change', {{ bubbles: true }}));
+          }} else if (el.isContentEditable) {{
+            el.textContent = {text};
+            el.dispatchEvent(new InputEvent('input', {{
+              bubbles: true,
+              inputType: 'insertText',
+              data: {text}
+            }}));
+          }} else {{
+            return {{ error: 'Element is not editable: ' + {sel} }};
+          }}
+          return {{ ok: true }};
+        }})()"#,
+        query = query,
+        sel = serde_json::to_string(selector)?,
+        text = serde_json::to_string(text)?
+    );
+    let result = runtime_evaluate_with_context(cdp, &set_script, true, false, context_id).await?;
+    if let Some(err) = result
+        .pointer("/result/value/error")
+        .and_then(Value::as_str)
+    {
+        bail!("{err}");
+    }
+
+    if editable_element_value(cdp, context_id, selector).await? == text {
+        return Ok(());
+    }
+
+    bail!("Typed text did not stick in {selector}");
 }
 
 pub fn resolve_selector(ctx: &AppContext, input: &str) -> Result<String> {
@@ -1121,7 +1438,10 @@ pub fn load_action_cache(ctx: &AppContext) -> Result<HashMap<String, ActionCache
     serde_json::from_str(&content).with_context(|| format!("failed parsing {}", path.display()))
 }
 
-pub fn save_action_cache(ctx: &AppContext, cache: &HashMap<String, ActionCacheEntry>) -> Result<()> {
+pub fn save_action_cache(
+    ctx: &AppContext,
+    cache: &HashMap<String, ActionCacheEntry>,
+) -> Result<()> {
     let now = now_epoch_ms();
     let mut entries = cache
         .iter()

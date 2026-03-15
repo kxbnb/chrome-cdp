@@ -38,7 +38,8 @@ pub(super) async fn cmd_cookies(ctx: &mut AppContext, args: &[String]) -> Result
                     } else {
                         String::new()
                     };
-                    out!(ctx,
+                    out!(
+                        ctx,
                         "{}={} ({}{} {})",
                         name,
                         truncate(value, 60),
@@ -73,7 +74,13 @@ pub(super) async fn cmd_cookies(ctx: &mut AppContext, args: &[String]) -> Result
                 json!({ "name": name, "value": value, "domain": domain, "path": "/" }),
             )
             .await?;
-            out!(ctx, "Cookie set: {}={} ({})", name, truncate(&value, 40), domain);
+            out!(
+                ctx,
+                "Cookie set: {}={} ({})",
+                name,
+                truncate(&value, 40),
+                domain
+            );
             cdp.close().await;
         }
         "clear" => {
@@ -232,7 +239,8 @@ pub(super) async fn cmd_network(ctx: &mut AppContext, args: &[String]) -> Result
             let mut cdp = open_cdp(ctx).await?;
             prepare_cdp(ctx, &mut cdp).await?;
             cdp.send("Network.enable", json!({})).await?;
-            out!(ctx,
+            out!(
+                ctx,
                 "Capturing network for {}s{}...",
                 duration,
                 filter
@@ -328,7 +336,8 @@ pub(super) async fn cmd_network(ctx: &mut AppContext, args: &[String]) -> Result
                     .status
                     .map(|s| format!("[{}]", s))
                     .unwrap_or_else(|| "[pending]".to_string());
-                out!(ctx,
+                out!(
+                    ctx,
                     "{} {} {} ({}) +{}ms",
                     r.method,
                     truncate(&r.url, 150),
@@ -367,7 +376,8 @@ pub(super) async fn cmd_network(ctx: &mut AppContext, args: &[String]) -> Result
                     .status
                     .map(|s| format!("[{}]", s))
                     .unwrap_or_else(|| "[pending]".to_string());
-                out!(ctx,
+                out!(
+                    ctx,
                     "{} {} {} ({}) +{}ms",
                     r.method,
                     truncate(&r.url, 150),
@@ -383,7 +393,8 @@ pub(super) async fn cmd_network(ctx: &mut AppContext, args: &[String]) -> Result
                     out!(ctx, "  body: {}", truncate(body, 200));
                 }
             }
-            out!(ctx,
+            out!(
+                ctx,
                 "\n{} requests{}",
                 filtered.len(),
                 filter
@@ -437,7 +448,8 @@ pub(super) async fn cmd_block(ctx: &mut AppContext, args: &[String]) -> Result<(
     });
     ctx.save_session_state(&state)?;
     if has_ads {
-        out!(ctx,
+        out!(
+            ctx,
             "Blocking: ads/trackers ({} patterns){}",
             ADBLOCK_PATTERNS.len(),
             if args.len() > 1 {
@@ -447,7 +459,8 @@ pub(super) async fn cmd_block(ctx: &mut AppContext, args: &[String]) -> Result<(
             }
         );
     } else {
-        out!(ctx,
+        out!(
+            ctx,
             "Blocking: {}. Takes effect on next page load.",
             args.join(", ")
         );
@@ -493,7 +506,8 @@ pub(super) async fn cmd_viewport(
         }),
     )
     .await?;
-    out!(ctx,
+    out!(
+        ctx,
         "Viewport set to {}x{} (dpr:{}{})",
         w,
         h,
@@ -523,9 +537,7 @@ pub(super) async fn cmd_zoom(ctx: &mut AppContext, level: Option<&str>) -> Resul
     let mut cdp = open_cdp(ctx).await?;
     prepare_cdp(ctx, &mut cdp).await?;
 
-    let script = format!(
-        "document.documentElement.style.zoom = '{zoom_factor}';"
-    );
+    let script = format!("document.documentElement.style.zoom = '{zoom_factor}';");
     runtime_evaluate(&mut cdp, &script, true, false).await?;
 
     state.zoom_level = if (new_level - 100.0).abs() < 0.01 {
@@ -545,7 +557,11 @@ pub(super) async fn cmd_frames(ctx: &mut AppContext) -> Result<()> {
     prepare_cdp(ctx, &mut cdp).await?;
     cdp.send("Page.enable", json!({})).await?;
     let tree = cdp.send("Page.getFrameTree", json!({})).await?;
-    print_frame_tree(&mut ctx.output, tree.get("frameTree").unwrap_or(&Value::Null), 0);
+    print_frame_tree(
+        &mut ctx.output,
+        tree.get("frameTree").unwrap_or(&Value::Null),
+        0,
+    );
     cdp.close().await;
     Ok(())
 }
@@ -629,7 +645,11 @@ pub(super) async fn cmd_media(ctx: &mut AppContext, args: &[String]) -> Result<(
 
     if args.is_empty() {
         // Reset all media emulation
-        cdp.send("Emulation.setEmulatedMedia", json!({"media": "", "features": []})).await?;
+        cdp.send(
+            "Emulation.setEmulatedMedia",
+            json!({"media": "", "features": []}),
+        )
+        .await?;
         out!(ctx, "Media emulation reset.");
         cdp.close().await;
         return Ok(());
@@ -654,7 +674,11 @@ pub(super) async fn cmd_media(ctx: &mut AppContext, args: &[String]) -> Result<(
                 features.push(json!({"name": "prefers-contrast", "value": "more"}));
             }
             "reset" => {
-                cdp.send("Emulation.setEmulatedMedia", json!({"media": "", "features": []})).await?;
+                cdp.send(
+                    "Emulation.setEmulatedMedia",
+                    json!({"media": "", "features": []}),
+                )
+                .await?;
                 out!(ctx, "Media emulation reset.");
                 cdp.close().await;
                 return Ok(());
@@ -697,17 +721,20 @@ pub(super) async fn cmd_animations(ctx: &mut AppContext, action: Option<&str>) -
     match action.unwrap_or("pause") {
         "pause" | "freeze" | "stop" => {
             cdp.send("Animation.enable", json!({})).await?;
-            cdp.send("Animation.setPlaybackRate", json!({"playbackRate": 0})).await?;
+            cdp.send("Animation.setPlaybackRate", json!({"playbackRate": 0}))
+                .await?;
             out!(ctx, "Animations paused.");
         }
         "resume" | "play" => {
             cdp.send("Animation.enable", json!({})).await?;
-            cdp.send("Animation.setPlaybackRate", json!({"playbackRate": 1})).await?;
+            cdp.send("Animation.setPlaybackRate", json!({"playbackRate": 1}))
+                .await?;
             out!(ctx, "Animations resumed.");
         }
         "slow" => {
             cdp.send("Animation.enable", json!({})).await?;
-            cdp.send("Animation.setPlaybackRate", json!({"playbackRate": 0.1})).await?;
+            cdp.send("Animation.setPlaybackRate", json!({"playbackRate": 0.1}))
+                .await?;
             out!(ctx, "Animations slowed to 10%.");
         }
         other => bail!("Unknown action: {other}. Valid: pause, resume, slow"),
@@ -726,11 +753,19 @@ pub(super) async fn cmd_security(ctx: &mut AppContext, args: &[String]) -> Resul
 
     match action {
         "ignore-certs" | "ignore-cert-errors" => {
-            cdp.send("Security.setIgnoreCertificateErrors", json!({"ignore": true})).await?;
+            cdp.send(
+                "Security.setIgnoreCertificateErrors",
+                json!({"ignore": true}),
+            )
+            .await?;
             out!(ctx, "Certificate errors will be ignored for this session.");
         }
         "strict" | "enforce-certs" => {
-            cdp.send("Security.setIgnoreCertificateErrors", json!({"ignore": false})).await?;
+            cdp.send(
+                "Security.setIgnoreCertificateErrors",
+                json!({"ignore": false}),
+            )
+            .await?;
             out!(ctx, "Certificate validation restored.");
         }
         _ => bail!("Usage: webact security <ignore-certs|strict>"),
@@ -762,7 +797,10 @@ pub(super) async fn cmd_storage(ctx: &mut AppContext, args: &[String]) -> Result
             for (label, is_local) in [("localStorage", true), ("sessionStorage", false)] {
                 let storage_id = json!({"securityOrigin": origin, "isLocalStorage": is_local});
                 let result = cdp
-                    .send("DOMStorage.getDOMStorageItems", json!({"storageId": storage_id}))
+                    .send(
+                        "DOMStorage.getDOMStorageItems",
+                        json!({"storageId": storage_id}),
+                    )
                     .await?;
                 let entries = result
                     .get("entries")
@@ -775,8 +813,14 @@ pub(super) async fn cmd_storage(ctx: &mut AppContext, args: &[String]) -> Result
                 let mut lines = vec![format!("{}:", label)];
                 for entry in &entries {
                     let arr = entry.as_array();
-                    let k = arr.and_then(|a| a.first()).and_then(Value::as_str).unwrap_or("");
-                    let v = arr.and_then(|a| a.get(1)).and_then(Value::as_str).unwrap_or("");
+                    let k = arr
+                        .and_then(|a| a.first())
+                        .and_then(Value::as_str)
+                        .unwrap_or("");
+                    let v = arr
+                        .and_then(|a| a.get(1))
+                        .and_then(Value::as_str)
+                        .unwrap_or("");
                     if let Some(filter) = key {
                         if k != filter {
                             continue;
@@ -795,7 +839,9 @@ pub(super) async fn cmd_storage(ctx: &mut AppContext, args: &[String]) -> Result
             }
         }
         "set" => {
-            let key = args.get(1).context("Usage: storage set <key> <value> [--session]")?;
+            let key = args
+                .get(1)
+                .context("Usage: storage set <key> <value> [--session]")?;
             let value = args.get(2).map(String::as_str).unwrap_or("");
             let is_local = !args.iter().any(|a| a == "--session");
             let storage_id = json!({"securityOrigin": origin, "isLocalStorage": is_local});
@@ -804,11 +850,17 @@ pub(super) async fn cmd_storage(ctx: &mut AppContext, args: &[String]) -> Result
                 json!({"storageId": storage_id, "key": key, "value": value}),
             )
             .await?;
-            let label = if is_local { "localStorage" } else { "sessionStorage" };
+            let label = if is_local {
+                "localStorage"
+            } else {
+                "sessionStorage"
+            };
             out!(ctx, "Set {label}[{key}] = {value}");
         }
         "remove" | "delete" => {
-            let key = args.get(1).context("Usage: storage remove <key> [--session]")?;
+            let key = args
+                .get(1)
+                .context("Usage: storage remove <key> [--session]")?;
             let is_local = !args.iter().any(|a| a == "--session");
             let storage_id = json!({"securityOrigin": origin, "isLocalStorage": is_local});
             cdp.send(
@@ -816,7 +868,11 @@ pub(super) async fn cmd_storage(ctx: &mut AppContext, args: &[String]) -> Result
                 json!({"storageId": storage_id, "key": key}),
             )
             .await?;
-            let label = if is_local { "localStorage" } else { "sessionStorage" };
+            let label = if is_local {
+                "localStorage"
+            } else {
+                "sessionStorage"
+            };
             out!(ctx, "Removed {label}[{key}]");
         }
         "clear" => {
@@ -824,12 +880,14 @@ pub(super) async fn cmd_storage(ctx: &mut AppContext, args: &[String]) -> Result
             match target {
                 "local" | "localStorage" => {
                     let storage_id = json!({"securityOrigin": origin, "isLocalStorage": true});
-                    cdp.send("DOMStorage.clear", json!({"storageId": storage_id})).await?;
+                    cdp.send("DOMStorage.clear", json!({"storageId": storage_id}))
+                        .await?;
                     out!(ctx, "Cleared localStorage for {origin}");
                 }
                 "session" | "sessionStorage" => {
                     let storage_id = json!({"securityOrigin": origin, "isLocalStorage": false});
-                    cdp.send("DOMStorage.clear", json!({"storageId": storage_id})).await?;
+                    cdp.send("DOMStorage.clear", json!({"storageId": storage_id}))
+                        .await?;
                     out!(ctx, "Cleared sessionStorage for {origin}");
                 }
                 "all" => {
@@ -846,7 +904,10 @@ pub(super) async fn cmd_storage(ctx: &mut AppContext, args: &[String]) -> Result
                         json!({"origin": origin, "storageTypes": "all"}),
                     )
                     .await?;
-                    out!(ctx, "Cleared all data (storage, cache, cookies, service workers) for {origin}");
+                    out!(
+                        ctx,
+                        "Cleared all data (storage, cache, cookies, service workers) for {origin}"
+                    );
                 }
                 _ => bail!("Usage: storage clear [local|session|all|everything]"),
             }

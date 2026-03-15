@@ -176,6 +176,7 @@ Each session creates and owns its own tabs. Sessions never reuse tabs from other
 - `tabs` only lists tabs owned by the current session
 - `tab <id>` only switches to session-owned tabs
 - `close` removes the tab from the session
+- Clicks that open a new tab via `target=_blank` or `window.open` are auto-adopted into your session and become the active tab
 
 This means two agents can work side by side in the same Chrome instance without interfering with each other.
 
@@ -251,7 +252,7 @@ When you need more information, stop at the first sufficient tool:
 ## Targeting Elements (priority order)
 
 1. **refs**: from `axtree -i`, `observe`, or `text` — `click 3`, `type 5 hello`, `screenshot --ref=7`
-2. **text search**: `click --text Submit` — finds smallest visible interactive element containing the text
+2. **text search**: `click --text Submit` — finds the smallest visible text match, then clicks the nearest actionable ancestor (button/link/tab/etc.) when needed
 3. **CSS selectors**: `#id`, `[data-testid="..."]`, `[aria-label="..."]`, `.class`, structural
 4. **eval**: `eval` with querySelector when the element is present but hard to target
 5. **coordinates**: `click 550,197` — last resort for canvas/iframes only, after all above have failed
@@ -291,7 +292,7 @@ For site-specific tips (Google Docs, Slack, Jira, Gmail, rich editors), see `sit
 **Portals, shadow DOM, and overlays:**
 - Modal dialogs, dropdowns, and popups often render in portal containers — CSS selectors from parent context won't find them
 - `axtree -i` and `observe` include deep overlays, nested menus, and portal content — try refs first
-- `click --text` finds elements inside portals and across shadow DOM boundaries
+- `click --text` finds elements inside portals and across shadow DOM boundaries, then walks up to the nearest actionable ancestor before clicking
 - `dom` traverses open shadow roots — web component internals are visible
 - When all else fails, use `eval` to find and `.click()` directly
 - Coordinate clicks from screenshots are a last resort for canvas/iframe-only surfaces

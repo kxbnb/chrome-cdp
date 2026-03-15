@@ -1,10 +1,10 @@
-use crate::*;
 use crate::api_client;
 use crate::config;
+use crate::*;
 
 use std::io::{self, Write as IoWrite};
 use tokio::io::{AsyncBufReadExt, BufReader};
-use tokio::time::{interval, Duration};
+use tokio::time::{Duration, interval};
 
 const TOOLS_JSON: &str = include_str!("../tools.json");
 const MCP_INSTRUCTIONS: &str = include_str!("../MCP_INSTRUCTIONS.md");
@@ -269,7 +269,11 @@ pub async fn run_mcp_server() -> Result<()> {
     if cfg.telemetry && !ctx.tool_counts.is_empty() {
         let duration = ctx.session_start.elapsed().as_secs();
         let platform = format!("{}-{}", std::env::consts::OS, std::env::consts::ARCH);
-        eprintln!("Final telemetry ({} tools, {}s)...", ctx.tool_counts.len(), duration);
+        eprintln!(
+            "Final telemetry ({} tools, {}s)...",
+            ctx.tool_counts.len(),
+            duration
+        );
         match api_client::send_telemetry(
             &ctx.session_id,
             env!("CARGO_PKG_VERSION"),
@@ -289,12 +293,9 @@ pub async fn run_mcp_server() -> Result<()> {
 
 fn write_response(stdout: &io::Stdout, response: &Value) -> Result<()> {
     let mut out = stdout.lock();
-    serde_json::to_writer(&mut out, response)
-        .context("failed writing JSON-RPC response")?;
-    out.write_all(b"\n")
-        .context("failed writing newline")?;
-    out.flush()
-        .context("failed flushing stdout")?;
+    serde_json::to_writer(&mut out, response).context("failed writing JSON-RPC response")?;
+    out.write_all(b"\n").context("failed writing newline")?;
+    out.flush().context("failed flushing stdout")?;
     Ok(())
 }
 
@@ -304,7 +305,10 @@ async fn handle_tool_call(
     arguments: &Value,
 ) -> Result<Vec<Value>> {
     // Commands that don't need a browser session
-    let no_browser = matches!(tool_name, "launch" | "connect" | "feedback" | "config" | "kill" | "install" | "uninstall");
+    let no_browser = matches!(
+        tool_name,
+        "launch" | "connect" | "feedback" | "config" | "kill" | "install" | "uninstall"
+    );
 
     // Auto-discover or create an isolated session for this MCP process.
     // Each MCP server gets its own session+tab so multiple agents don't collide.
@@ -356,7 +360,10 @@ async fn handle_tool_call(
 
     // Special handling for screenshot: return image content (unless saved to custom path)
     if tool_name == "screenshot" {
-        let has_output_path = arguments.get("output").and_then(Value::as_str).is_some_and(|s| !s.is_empty());
+        let has_output_path = arguments
+            .get("output")
+            .and_then(Value::as_str)
+            .is_some_and(|s| !s.is_empty());
         if !has_output_path {
             return handle_screenshot_output(&output);
         }
@@ -365,7 +372,9 @@ async fn handle_tool_call(
     // Return text content
     let text = output.trim_end().to_string();
     if text.is_empty() {
-        Ok(vec![json!({ "type": "text", "text": format!("{tool_name}: no output") })])
+        Ok(vec![
+            json!({ "type": "text", "text": format!("{tool_name}: no output") }),
+        ])
     } else {
         Ok(vec![json!({ "type": "text", "text": text })])
     }
@@ -385,10 +394,14 @@ fn handle_screenshot_output(output: &str) -> Result<Vec<Value>> {
         })]);
     }
 
-    let bytes = fs::read(path)
-        .with_context(|| format!("failed reading screenshot file: {path}"))?;
+    let bytes =
+        fs::read(path).with_context(|| format!("failed reading screenshot file: {path}"))?;
     let b64 = base64::engine::general_purpose::STANDARD.encode(&bytes);
-    let mime = if path.ends_with(".png") { "image/png" } else { "image/jpeg" };
+    let mime = if path.ends_with(".png") {
+        "image/png"
+    } else {
+        "image/jpeg"
+    };
 
     Ok(vec![
         json!({
@@ -420,7 +433,11 @@ fn map_tool_args(command: &str, arguments: &Value) -> Vec<String> {
         // Single URL arg
         "navigate" => {
             let mut args = vec_from_opt_str(arguments, "url");
-            if arguments.get("no_dismiss").and_then(Value::as_bool).unwrap_or(false) {
+            if arguments
+                .get("no_dismiss")
+                .and_then(Value::as_bool)
+                .unwrap_or(false)
+            {
                 args.push("--no-dismiss".to_string());
             }
             args
@@ -485,9 +502,7 @@ fn map_tool_args(command: &str, arguments: &Value) -> Vec<String> {
             args
         }
         // Click variants, hover: split target on whitespace
-        "click" | "doubleclick" | "rightclick" | "hover" | "humanclick" => {
-            split_target(arguments)
-        }
+        "click" | "doubleclick" | "rightclick" | "hover" | "humanclick" => split_target(arguments),
         // Type/humantype: selector + text
         "type" | "humantype" => {
             let mut args = Vec::new();
@@ -511,13 +526,9 @@ fn map_tool_args(command: &str, arguments: &Value) -> Vec<String> {
             args
         }
         // Keyboard/paste: text
-        "keyboard" | "paste" => {
-            vec_from_opt_str(arguments, "text")
-        }
+        "keyboard" | "paste" => vec_from_opt_str(arguments, "text"),
         // Press: key
-        "press" => {
-            vec_from_opt_str(arguments, "key")
-        }
+        "press" => vec_from_opt_str(arguments, "key"),
         // Select: selector + values array
         "select" => {
             let mut args = Vec::new();
@@ -573,9 +584,7 @@ fn map_tool_args(command: &str, arguments: &Value) -> Vec<String> {
             args
         }
         // Eval: expression
-        "eval" => {
-            vec_from_opt_str(arguments, "expression")
-        }
+        "eval" => vec_from_opt_str(arguments, "expression"),
         // Dialog: action + optional text
         "dialog" => {
             let mut args = Vec::new();
@@ -673,17 +682,11 @@ fn map_tool_args(command: &str, arguments: &Value) -> Vec<String> {
             args
         }
         // Zoom: level
-        "zoom" => {
-            vec_from_opt_str(arguments, "level")
-        }
+        "zoom" => vec_from_opt_str(arguments, "level"),
         // Frame: target
-        "frame" => {
-            vec_from_opt_str(arguments, "target")
-        }
+        "frame" => vec_from_opt_str(arguments, "target"),
         // Tab: id
-        "tab" => {
-            vec_from_opt_str(arguments, "id")
-        }
+        "tab" => vec_from_opt_str(arguments, "id"),
         // Newtab: optional url
         "newtab" => {
             let mut args = Vec::new();
@@ -749,19 +752,19 @@ fn map_tool_args(command: &str, arguments: &Value) -> Vec<String> {
         // Media: features array
         "media" => {
             if let Some(features) = arguments.get("features").and_then(Value::as_array) {
-                features.iter().filter_map(Value::as_str).map(String::from).collect()
+                features
+                    .iter()
+                    .filter_map(Value::as_str)
+                    .map(String::from)
+                    .collect()
             } else {
                 vec!["reset".to_string()]
             }
         }
         // Animations: action
-        "animations" => {
-            vec_from_opt_str(arguments, "action")
-        }
+        "animations" => vec_from_opt_str(arguments, "action"),
         // Security: action
-        "security" => {
-            vec_from_opt_str(arguments, "action")
-        }
+        "security" => vec_from_opt_str(arguments, "action"),
         // Storage: action, key, value, target, session flag
         "storage" => {
             let mut args = Vec::new();
@@ -781,23 +784,21 @@ fn map_tool_args(command: &str, arguments: &Value) -> Vec<String> {
                     args.push(target.to_string());
                 }
             }
-            if arguments.get("session").and_then(Value::as_bool).unwrap_or(false) {
+            if arguments
+                .get("session")
+                .and_then(Value::as_bool)
+                .unwrap_or(false)
+            {
                 args.push("--session".to_string());
             }
             args
         }
         // Service worker: action
-        "sw" => {
-            vec_from_opt_str(arguments, "action")
-        }
+        "sw" => vec_from_opt_str(arguments, "action"),
         // Find: query
-        "find" => {
-            vec_from_opt_str(arguments, "query")
-        }
+        "find" => vec_from_opt_str(arguments, "query"),
         // Resolve: selector
-        "resolve" => {
-            vec_from_opt_str(arguments, "selector")
-        }
+        "resolve" => vec_from_opt_str(arguments, "selector"),
         // Pdf: optional path
         "pdf" => {
             let mut args = Vec::new();
@@ -809,9 +810,7 @@ fn map_tool_args(command: &str, arguments: &Value) -> Vec<String> {
             args
         }
         // Focus/clear: selector
-        "focus" | "clear" => {
-            vec_from_opt_str(arguments, "selector")
-        }
+        "focus" | "clear" => vec_from_opt_str(arguments, "selector"),
         "screenshot" => {
             let mut args = Vec::new();
             if let Some(r) = arguments.get("ref").and_then(Value::as_i64) {
@@ -833,7 +832,11 @@ fn map_tool_args(command: &str, arguments: &Value) -> Vec<String> {
             if let Some(s) = arguments.get("scale").and_then(Value::as_f64) {
                 args.push(format!("--scale={s}"));
             }
-            if arguments.get("full").and_then(Value::as_bool).unwrap_or(false) {
+            if arguments
+                .get("full")
+                .and_then(Value::as_bool)
+                .unwrap_or(false)
+            {
                 args.push("--full".to_string());
             }
             if let Some(o) = arguments.get("output").and_then(Value::as_str) {
@@ -882,7 +885,11 @@ fn map_tool_args(command: &str, arguments: &Value) -> Vec<String> {
                     args.push(profile.to_string());
                 }
             }
-            if arguments.get("headless").and_then(Value::as_bool).unwrap_or(false) {
+            if arguments
+                .get("headless")
+                .and_then(Value::as_bool)
+                .unwrap_or(false)
+            {
                 args.push("--headless".to_string());
             }
             args
@@ -892,14 +899,10 @@ fn map_tool_args(command: &str, arguments: &Value) -> Vec<String> {
             vec![serde_json::to_string(arguments).unwrap_or_default()]
         }
         // Grid: optional spec
-        "grid" => {
-            vec_from_opt_str(arguments, "spec")
-        }
+        "grid" => vec_from_opt_str(arguments, "spec"),
         // No-arg commands
-        "observe" | "frames" | "tabs" | "close" | "back"
-        | "forward" | "reload" | "activate" | "minimize" | "unlock" | "kill" | "install" => {
-            Vec::new()
-        }
+        "observe" | "frames" | "tabs" | "close" | "back" | "forward" | "reload" | "activate"
+        | "minimize" | "unlock" | "kill" | "install" => Vec::new(),
         _ => Vec::new(),
     }
 }

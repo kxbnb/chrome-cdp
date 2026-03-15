@@ -739,10 +739,22 @@ fn all_browser_candidates() -> Vec<(String, String)> {
 
     if cfg!(target_os = "macos") {
         for (name, rel) in [
-            ("Google Chrome", "Google Chrome.app/Contents/MacOS/Google Chrome"),
-            ("Google Chrome Canary", "Google Chrome Canary.app/Contents/MacOS/Google Chrome Canary"),
-            ("Microsoft Edge", "Microsoft Edge.app/Contents/MacOS/Microsoft Edge"),
-            ("Brave Browser", "Brave Browser.app/Contents/MacOS/Brave Browser"),
+            (
+                "Google Chrome",
+                "Google Chrome.app/Contents/MacOS/Google Chrome",
+            ),
+            (
+                "Google Chrome Canary",
+                "Google Chrome Canary.app/Contents/MacOS/Google Chrome Canary",
+            ),
+            (
+                "Microsoft Edge",
+                "Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+            ),
+            (
+                "Brave Browser",
+                "Brave Browser.app/Contents/MacOS/Brave Browser",
+            ),
             ("Arc", "Arc.app/Contents/MacOS/Arc"),
             ("Vivaldi", "Vivaldi.app/Contents/MacOS/Vivaldi"),
             ("Opera", "Opera.app/Contents/MacOS/Opera"),
@@ -776,15 +788,34 @@ fn all_browser_candidates() -> Vec<(String, String)> {
         );
     } else if cfg!(target_os = "windows") {
         let pf = env::var("PROGRAMFILES").unwrap_or_else(|_| "C:\\Program Files".to_string());
-        let pf86 = env::var("PROGRAMFILES(X86)").unwrap_or_else(|_| "C:\\Program Files (x86)".to_string());
+        let pf86 =
+            env::var("PROGRAMFILES(X86)").unwrap_or_else(|_| "C:\\Program Files (x86)".to_string());
         let local = env::var("LOCALAPPDATA").unwrap_or_default();
         candidates.extend([
-            (format!("{pf}\\Google\\Chrome\\Application\\chrome.exe"), "Google Chrome".to_string()),
-            (format!("{pf86}\\Google\\Chrome\\Application\\chrome.exe"), "Google Chrome".to_string()),
-            (format!("{local}\\Google\\Chrome\\Application\\chrome.exe"), "Google Chrome".to_string()),
-            (format!("{pf}\\Microsoft\\Edge\\Application\\msedge.exe"), "Microsoft Edge".to_string()),
-            (format!("{pf86}\\Microsoft\\Edge\\Application\\msedge.exe"), "Microsoft Edge".to_string()),
-            (format!("{pf}\\BraveSoftware\\Brave-Browser\\Application\\brave.exe"), "Brave Browser".to_string()),
+            (
+                format!("{pf}\\Google\\Chrome\\Application\\chrome.exe"),
+                "Google Chrome".to_string(),
+            ),
+            (
+                format!("{pf86}\\Google\\Chrome\\Application\\chrome.exe"),
+                "Google Chrome".to_string(),
+            ),
+            (
+                format!("{local}\\Google\\Chrome\\Application\\chrome.exe"),
+                "Google Chrome".to_string(),
+            ),
+            (
+                format!("{pf}\\Microsoft\\Edge\\Application\\msedge.exe"),
+                "Microsoft Edge".to_string(),
+            ),
+            (
+                format!("{pf86}\\Microsoft\\Edge\\Application\\msedge.exe"),
+                "Microsoft Edge".to_string(),
+            ),
+            (
+                format!("{pf}\\BraveSoftware\\Brave-Browser\\Application\\brave.exe"),
+                "Brave Browser".to_string(),
+            ),
         ]);
     }
 

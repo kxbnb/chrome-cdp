@@ -31,7 +31,8 @@ pub(crate) async fn cmd_eval(ctx: &mut AppContext, expression: &str) -> Result<(
             if let Some(v) = ser.pointer("/result/value").and_then(Value::as_str) {
                 out!(ctx, "{v}");
             } else {
-                out!(ctx,
+                out!(
+                    ctx,
                     "{}",
                     r.get("description")
                         .and_then(Value::as_str)
@@ -39,7 +40,8 @@ pub(crate) async fn cmd_eval(ctx: &mut AppContext, expression: &str) -> Result<(
                 );
             }
         } else {
-            out!(ctx,
+            out!(
+                ctx,
                 "{}",
                 r.get("description")
                     .and_then(Value::as_str)
@@ -52,7 +54,8 @@ pub(crate) async fn cmd_eval(ctx: &mut AppContext, expression: &str) -> Result<(
             _ => out!(ctx, "{v}"),
         }
     } else {
-        out!(ctx,
+        out!(
+            ctx,
             "{}",
             r.get("description")
                 .and_then(Value::as_str)
@@ -165,9 +168,14 @@ pub(crate) async fn cmd_find(ctx: &mut AppContext, query: &str) -> Result<()> {
     } else {
         "low"
     };
-    out!(ctx,
+    out!(
+        ctx,
         "Best: [{}] {} \"{}\" ({} confidence, score:{:.2})",
-        best_ref, best_el.role, best_el.name, confidence, best_score
+        best_ref,
+        best_el.role,
+        best_el.name,
+        confidence,
+        best_score
     );
     if top.len() > 1 {
         out!(ctx, "Also:");

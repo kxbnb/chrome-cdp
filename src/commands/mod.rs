@@ -21,7 +21,8 @@ pub async fn dispatch(ctx: &mut AppContext, command: &str, args: &[String]) -> R
                 bail!("Usage: webact navigate <url>");
             }
             let no_dismiss = args.iter().any(|a| a == "--no-dismiss");
-            let url_parts: Vec<&str> = args.iter()
+            let url_parts: Vec<&str> = args
+                .iter()
                 .filter(|a| *a != "--no-dismiss")
                 .map(String::as_str)
                 .collect();
@@ -147,7 +148,8 @@ pub async fn dispatch(ctx: &mut AppContext, command: &str, args: &[String]) -> R
             cmd_type(ctx, &selector, &text).await
         }
         "fill" => {
-            let fields: Vec<(String, String)> = args.chunks(2)
+            let fields: Vec<(String, String)> = args
+                .chunks(2)
                 .filter(|c| c.len() == 2)
                 .map(|c| (c[0].clone(), c[1].clone()))
                 .collect();
@@ -190,10 +192,7 @@ pub async fn dispatch(ctx: &mut AppContext, command: &str, args: &[String]) -> R
         }
         "waitfornav" => cmd_wait_for_nav(ctx, args.first().map(String::as_str)).await,
         "press" => {
-            let key = args
-                .first()
-                .cloned()
-                .context("Usage: webact press <key>")?;
+            let key = args.first().cloned().context("Usage: webact press <key>")?;
             cmd_press(ctx, &key).await
         }
         "scroll" => cmd_scroll(ctx, args).await,
@@ -288,14 +287,14 @@ pub async fn dispatch(ctx: &mut AppContext, command: &str, args: &[String]) -> R
         "forward" => cmd_forward(ctx).await,
         "reload" => cmd_reload(ctx).await,
         "feedback" => {
-            let rating: u8 = args
-                .first()
-                .and_then(|s| s.parse().ok())
-                .unwrap_or(0);
+            let rating: u8 = args.first().and_then(|s| s.parse().ok()).unwrap_or(0);
             let comment = args.get(1).map(String::as_str).unwrap_or("");
             let config = crate::config::load_config();
             if !config.feedback {
-                out!(ctx, "Feedback is disabled. Enable with: webact config set feedback true");
+                out!(
+                    ctx,
+                    "Feedback is disabled. Enable with: webact config set feedback true"
+                );
                 return Ok(());
             }
             if rating < 1 || rating > 5 {
@@ -333,7 +332,8 @@ pub async fn dispatch(ctx: &mut AppContext, command: &str, args: &[String]) -> R
                         "telemetry" => config.telemetry = raw_value == "true",
                         "feedback" => config.feedback = raw_value == "true",
                         "browser" => {
-                            if raw_value == "false" || raw_value == "none" || raw_value == "default" {
+                            if raw_value == "false" || raw_value == "none" || raw_value == "default"
+                            {
                                 config.browser = None;
                                 crate::config::save_config(&config)?;
                                 out!(ctx, "Cleared browser preference (will use system default)");
@@ -341,12 +341,16 @@ pub async fn dispatch(ctx: &mut AppContext, command: &str, args: &[String]) -> R
                             }
                             // Validate the browser name
                             if find_browser_by_name(raw_value).is_none() {
-                                bail!("Browser '{raw_value}' not found. Available: chrome, edge, brave, arc, vivaldi, chromium, canary");
+                                bail!(
+                                    "Browser '{raw_value}' not found. Available: chrome, edge, brave, arc, vivaldi, chromium, canary"
+                                );
                             }
                             config.browser = Some(raw_value.to_string());
                         }
                         "auto_update" => config.auto_update = raw_value == "true",
-                        _ => bail!("Unknown config key: {key}. Valid keys: telemetry, feedback, browser, auto_update"),
+                        _ => bail!(
+                            "Unknown config key: {key}. Valid keys: telemetry, feedback, browser, auto_update"
+                        ),
                     }
                     crate::config::save_config(&config)?;
                     out!(ctx, "Set {key} = {raw_value}");
@@ -364,7 +368,10 @@ pub async fn dispatch(ctx: &mut AppContext, command: &str, args: &[String]) -> R
                     out!(ctx, "Update available: v{latest}");
                     out!(ctx, "Downloading...");
                     crate::api_client::self_update(&latest).await?;
-                    out!(ctx, "Updated to v{latest}. Restart webact to use the new version.");
+                    out!(
+                        ctx,
+                        "Updated to v{latest}. Restart webact to use the new version."
+                    );
                 }
                 Ok(None) => out!(ctx, "Already up to date (v{current})."),
                 Err(e) => bail!("Failed to check for updates: {e}"),

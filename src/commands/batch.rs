@@ -163,11 +163,7 @@ fn build_action_args(tool: &str, action: &Value) -> Vec<String> {
             if let Some(s) = action.get("scale").and_then(Value::as_f64) {
                 args.push(format!("--scale={s}"));
             }
-            if action
-                .get("full")
-                .and_then(Value::as_bool)
-                .unwrap_or(false)
-            {
+            if action.get("full").and_then(Value::as_bool).unwrap_or(false) {
                 args.push("--full".to_string());
             }
             if let Some(o) = action.get("output").and_then(Value::as_str) {
@@ -242,11 +238,7 @@ fn build_action_args(tool: &str, action: &Value) -> Vec<String> {
             {
                 args.push("-i".to_string());
             }
-            if action
-                .get("diff")
-                .and_then(Value::as_bool)
-                .unwrap_or(false)
-            {
+            if action.get("diff").and_then(Value::as_bool).unwrap_or(false) {
                 args.push("--diff".to_string());
             }
         }

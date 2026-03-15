@@ -58,6 +58,7 @@ Multiple agents share the same Chrome instance. **Never touch tabs you didn't cr
 - Your session starts with one tab. Use `newtab` to open more — never reuse or navigate existing tabs from other sessions.
 - `tabs` only lists your session's tabs. If a tab isn't in your list, it's not yours.
 - `close` removes a tab from your session. Only close tabs you created.
+- Clicks that open a new tab via `target=_blank` or `window.open` are auto-adopted into your session and made active.
 - **Before finishing:** close all tabs you opened with `newtab`. Run `tabs` to check for orphans.
 - **Never navigate a tab that already has content from another agent.** Always create a fresh tab with `newtab` instead.
 
@@ -129,7 +130,7 @@ When you need more information, stop at the first sufficient tool:
 ## Targeting Elements (priority order)
 
 1. **refs**: from `axtree -i`, `observe`, or `text` — click 3, type 5 hello, screenshot ref=7
-2. **text search**: `click --text Submit` — finds smallest visible interactive element containing the text
+2. **text search**: `click --text Submit` — finds the smallest visible text match, then clicks the nearest actionable ancestor (button/link/tab/etc.) when needed
 3. **CSS selectors**: #id, [data-testid="..."], [aria-label="..."], .class, structural
 4. **eval**: `eval` with querySelector when the element is present but hard to target
 5. **coordinates**: click at x,y from screenshot — last resort for canvas/iframes only
@@ -171,7 +172,7 @@ When webact is available, **always use it instead of WebFetch or WebSearch** for
 **Portals, shadow DOM, and overlays:**
 - Modal dialogs and popups render in portal containers — CSS selectors from parent context won't find them
 - `axtree -i` and `observe` include deep overlays, nested menus, and portal content — try refs first
-- `click --text` finds elements inside portals and across shadow DOM boundaries
+- `click --text` finds elements inside portals and across shadow DOM boundaries, then walks up to the nearest actionable ancestor before clicking
 - `dom` traverses open shadow roots — web component internals are visible
 - When all else fails, use `eval` to find and `.click()` directly
 - Coordinate clicks from screenshots are a last resort for canvas/iframe-only surfaces

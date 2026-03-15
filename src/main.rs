@@ -99,11 +99,16 @@ async fn run() -> Result<()> {
         // --tab mode: discover Chrome port only, then create an isolated session
         // to avoid polluting the original session's state (ref maps, frame, etc.)
         let port = if let Ok(state_port) = (|| -> Result<u16> {
-            let sid = fs::read_to_string(ctx.last_session_file())?.trim().to_string();
+            let sid = fs::read_to_string(ctx.last_session_file())?
+                .trim()
+                .to_string();
             let path = ctx.session_state_file(&sid);
             let content = fs::read_to_string(&path)?;
             let state: serde_json::Value = serde_json::from_str(&content)?;
-            state.get("port").and_then(|v| v.as_u64()).map(|p| p as u16)
+            state
+                .get("port")
+                .and_then(|v| v.as_u64())
+                .map(|p| p as u16)
                 .ok_or_else(|| anyhow!("no port"))
         })() {
             state_port
@@ -112,7 +117,9 @@ async fn run() -> Result<()> {
             let port_file = ctx.chrome_port_file_for("default");
             let port_str = fs::read_to_string(&port_file)
                 .context("No running browser found. Run: webact launch")?;
-            port_str.trim().parse::<u16>()
+            port_str
+                .trim()
+                .parse::<u16>()
                 .context("No running browser found. Run: webact launch")?
         };
         ctx.cdp_port = port;

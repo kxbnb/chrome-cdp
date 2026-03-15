@@ -1,5 +1,5 @@
 use anyhow::{Context, Result, anyhow, bail};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::time::Duration;
@@ -29,7 +29,9 @@ pub async fn send_telemetry(
     tools: &HashMap<String, u64>,
 ) -> Result<()> {
     let url = format!("{}/v1/telemetry", api_base());
-    let client = reqwest::Client::builder().timeout(SHUTDOWN_TIMEOUT).build()?;
+    let client = reqwest::Client::builder()
+        .timeout(SHUTDOWN_TIMEOUT)
+        .build()?;
     let resp = client
         .post(&url)
         .json(&json!({
@@ -52,7 +54,9 @@ pub async fn send_feedback(
     comment: &str,
 ) -> Result<()> {
     let url = format!("{}/v1/feedback", api_base());
-    let client = reqwest::Client::builder().timeout(SHUTDOWN_TIMEOUT).build()?;
+    let client = reqwest::Client::builder()
+        .timeout(SHUTDOWN_TIMEOUT)
+        .build()?;
     let resp = client
         .post(&url)
         .json(&json!({
@@ -211,13 +215,12 @@ async fn do_self_update(version: &str) -> Result<()> {
     }
 
     // Find where the current binary lives
-    let current_exe = std::env::current_exe()
-        .context("Cannot determine current executable path")?;
+    let current_exe =
+        std::env::current_exe().context("Cannot determine current executable path")?;
 
     // Stage the new binary next to the target with a unique name, then atomic rename
     let staged = current_exe.with_extension(format!("new-{}", std::process::id()));
-    std::fs::copy(&extracted, &staged)
-        .context("Failed to copy new binary to install directory")?;
+    std::fs::copy(&extracted, &staged).context("Failed to copy new binary to install directory")?;
 
     #[cfg(unix)]
     {

@@ -3,6 +3,7 @@ use super::*;
 pub(crate) async fn cmd_click_dispatch(ctx: &mut AppContext, args: &[String]) -> Result<()> {
     if let Some((raw_x, raw_y)) = parse_coordinates(args) {
         let (x, y) = adjust_coords_for_zoom(ctx, raw_x, raw_y);
+        let tabs_before = snapshot_tab_ids(ctx).await?;
         let mut cdp = open_cdp(ctx).await?;
         prepare_cdp(ctx, &mut cdp).await?;
         cdp.send(
@@ -23,6 +24,26 @@ pub(crate) async fn cmd_click_dispatch(ctx: &mut AppContext, args: &[String]) ->
         .await?;
         out!(ctx, "Clicked at ({x}, {y})");
         sleep(Duration::from_millis(150)).await;
+        let adopted = adopt_new_tabs(ctx, &tabs_before, Duration::from_millis(800)).await?;
+        if !adopted.is_empty() {
+            cdp.close().await;
+            let mut adopted_cdp = open_cdp(ctx).await?;
+            prepare_cdp(ctx, &mut adopted_cdp).await?;
+            out!(
+                ctx,
+                "Adopted {} new tab(s); switched to [{}]",
+                adopted.len(),
+                adopted
+                    .iter()
+                    .find(|tab| tab.url.as_deref().is_some_and(|url| url != "about:blank"))
+                    .or_else(|| adopted.first())
+                    .map(|tab| tab.id.as_str())
+                    .unwrap_or("unknown")
+            );
+            out!(ctx, "{}", get_page_brief(&mut adopted_cdp).await?);
+            adopted_cdp.close().await;
+            return Ok(());
+        }
         out!(ctx, "{}", get_page_brief(&mut cdp).await?);
         cdp.close().await;
         return Ok(());
@@ -32,6 +53,7 @@ pub(crate) async fn cmd_click_dispatch(ctx: &mut AppContext, args: &[String]) ->
         if text.is_empty() {
             bail!("Usage: webact click --text <text>");
         }
+        let tabs_before = snapshot_tab_ids(ctx).await?;
         let mut cdp = open_cdp(ctx).await?;
         prepare_cdp(ctx, &mut cdp).await?;
         let loc = locate_element_by_text(ctx, &mut cdp, &text).await?;
@@ -51,12 +73,33 @@ pub(crate) async fn cmd_click_dispatch(ctx: &mut AppContext, args: &[String]) ->
             json!({ "type": "mouseReleased", "x": loc.x, "y": loc.y, "button": "left", "clickCount": 1 }),
         )
         .await?;
-        out!(ctx,
+        out!(
+            ctx,
             "Clicked {} \"{}\" (text match)",
             loc.tag.to_lowercase(),
             loc.text
         );
         sleep(Duration::from_millis(150)).await;
+        let adopted = adopt_new_tabs(ctx, &tabs_before, Duration::from_millis(800)).await?;
+        if !adopted.is_empty() {
+            cdp.close().await;
+            let mut adopted_cdp = open_cdp(ctx).await?;
+            prepare_cdp(ctx, &mut adopted_cdp).await?;
+            out!(
+                ctx,
+                "Adopted {} new tab(s); switched to [{}]",
+                adopted.len(),
+                adopted
+                    .iter()
+                    .find(|tab| tab.url.as_deref().is_some_and(|url| url != "about:blank"))
+                    .or_else(|| adopted.first())
+                    .map(|tab| tab.id.as_str())
+                    .unwrap_or("unknown")
+            );
+            out!(ctx, "{}", get_page_brief(&mut adopted_cdp).await?);
+            adopted_cdp.close().await;
+            return Ok(());
+        }
         out!(ctx, "{}", get_page_brief(&mut cdp).await?);
         cdp.close().await;
         return Ok(());
@@ -86,7 +129,8 @@ pub(crate) async fn cmd_double_click_dispatch(ctx: &mut AppContext, args: &[Stri
         prepare_cdp(ctx, &mut cdp).await?;
         let loc = locate_element_by_text(ctx, &mut cdp, &text).await?;
         dispatch_double_click(&mut cdp, loc.x, loc.y).await?;
-        out!(ctx,
+        out!(
+            ctx,
             "Double-clicked {} \"{}\" (text match)",
             loc.tag.to_lowercase(),
             loc.text
@@ -121,7 +165,8 @@ pub(crate) async fn cmd_right_click_dispatch(ctx: &mut AppContext, args: &[Strin
         prepare_cdp(ctx, &mut cdp).await?;
         let loc = locate_element_by_text(ctx, &mut cdp, &text).await?;
         dispatch_right_click(&mut cdp, loc.x, loc.y).await?;
-        out!(ctx,
+        out!(
+            ctx,
             "Right-clicked {} \"{}\" (text match)",
             loc.tag.to_lowercase(),
             loc.text
@@ -164,7 +209,8 @@ pub(crate) async fn cmd_hover_dispatch(ctx: &mut AppContext, args: &[String]) ->
             json!({ "type": "mouseMoved", "x": loc.x, "y": loc.y }),
         )
         .await?;
-        out!(ctx,
+        out!(
+            ctx,
             "Hovered {} \"{}\" (text match)",
             loc.tag.to_lowercase(),
             loc.text
@@ -183,7 +229,12 @@ pub(crate) async fn cmd_double_click(ctx: &mut AppContext, selector: &str) -> Re
     prepare_cdp(ctx, &mut cdp).await?;
     let loc = locate_element(ctx, &mut cdp, selector).await?;
     dispatch_double_click(&mut cdp, loc.x, loc.y).await?;
-    out!(ctx, "Double-clicked {} \"{}\"", loc.tag.to_lowercase(), loc.text);
+    out!(
+        ctx,
+        "Double-clicked {} \"{}\"",
+        loc.tag.to_lowercase(),
+        loc.text
+    );
     sleep(Duration::from_millis(150)).await;
     out!(ctx, "{}", get_page_brief(&mut cdp).await?);
     cdp.close().await;
@@ -195,7 +246,12 @@ pub(crate) async fn cmd_right_click(ctx: &mut AppContext, selector: &str) -> Res
     prepare_cdp(ctx, &mut cdp).await?;
     let loc = locate_element(ctx, &mut cdp, selector).await?;
     dispatch_right_click(&mut cdp, loc.x, loc.y).await?;
-    out!(ctx, "Right-clicked {} \"{}\"", loc.tag.to_lowercase(), loc.text);
+    out!(
+        ctx,
+        "Right-clicked {} \"{}\"",
+        loc.tag.to_lowercase(),
+        loc.text
+    );
     sleep(Duration::from_millis(150)).await;
     out!(ctx, "{}", get_page_brief(&mut cdp).await?);
     cdp.close().await;
@@ -251,7 +307,8 @@ pub(crate) async fn cmd_drag(
         json!({ "type": "mouseReleased", "x": to.x, "y": to.y, "button": "left", "clickCount": 1 }),
     )
     .await?;
-    out!(ctx,
+    out!(
+        ctx,
         "Dragged {} to {}",
         from.tag.to_lowercase(),
         to.tag.to_lowercase()

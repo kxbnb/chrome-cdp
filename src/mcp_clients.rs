@@ -31,7 +31,17 @@ pub fn configure_clients() {
         configure_cli_client(
             "Claude Code",
             &["claude", "mcp", "get", "webact"],
-            &["claude", "mcp", "add", "-s", "user", "webact", &binary_path, "--", "mcp"],
+            &[
+                "claude",
+                "mcp",
+                "add",
+                "-s",
+                "user",
+                "webact",
+                &binary_path,
+                "--",
+                "mcp",
+            ],
         );
     }
 
@@ -51,7 +61,16 @@ pub fn configure_clients() {
             "Gemini CLI",
             &["gemini", "mcp", "list"],
             "webact",
-            &["gemini", "mcp", "add", "-s", "user", "webact", &binary_path, "mcp"],
+            &[
+                "gemini",
+                "mcp",
+                "add",
+                "-s",
+                "user",
+                "webact",
+                &binary_path,
+                "mcp",
+            ],
         );
     }
 
@@ -286,7 +305,9 @@ fn file_clients_mcp_servers() -> Vec<FileClient> {
     } else {
         clients.push(FileClient {
             name: "Cline (VSCode)",
-            path: xdg_config_dir().join("Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json"),
+            path: xdg_config_dir().join(
+                "Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json",
+            ),
             create_when: CreateWhen::Never,
         });
     }
@@ -301,7 +322,9 @@ fn file_clients_mcp_servers() -> Vec<FileClient> {
     } else {
         clients.push(FileClient {
             name: "Cline (Cursor)",
-            path: xdg_config_dir().join("Cursor/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json"),
+            path: xdg_config_dir().join(
+                "Cursor/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json",
+            ),
             create_when: CreateWhen::Never,
         });
     }
@@ -351,9 +374,7 @@ fn upsert_mcp_servers(path: &Path, binary_path: &str, create_if_missing: bool) -
         None => return Some("config is not a JSON object".into()),
     };
 
-    let servers = obj
-        .entry("mcpServers")
-        .or_insert_with(|| json!({}));
+    let servers = obj.entry("mcpServers").or_insert_with(|| json!({}));
 
     let servers_map = match servers.as_object_mut() {
         Some(m) => m,
@@ -652,8 +673,7 @@ fn strip_trailing_commas(s: &str) -> String {
 
 /// Write a serde_json Value to a file with pretty-printing and trailing newline.
 fn write_json(path: &Path, data: &Value) -> Result<(), std::io::Error> {
-    let serialized = serde_json::to_string_pretty(data).map_err(|e| {
-        std::io::Error::new(std::io::ErrorKind::Other, e)
-    })?;
+    let serialized = serde_json::to_string_pretty(data)
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
     fs::write(path, format!("{serialized}\n"))
 }

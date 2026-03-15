@@ -2,25 +2,31 @@ use super::*;
 
 pub(super) async fn cmd_launch(ctx: &mut AppContext, args: &[String]) -> Result<()> {
     // Parse --browser <name> argument, fall back to config
-    let preferred_browser = args.windows(2).find_map(|pair| {
-        if pair[0] == "--browser" {
-            Some(pair[1].clone())
-        } else {
-            None
-        }
-    }).or_else(|| crate::config::load_config().browser);
+    let preferred_browser = args
+        .windows(2)
+        .find_map(|pair| {
+            if pair[0] == "--browser" {
+                Some(pair[1].clone())
+            } else {
+                None
+            }
+        })
+        .or_else(|| crate::config::load_config().browser);
 
     // Parse --headless flag
     let headless = args.iter().any(|a| a == "--headless");
 
     // Parse --profile <name> argument
-    let profile = args.windows(2).find_map(|pair| {
-        if pair[0] == "--profile" {
-            Some(pair[1].clone())
-        } else {
-            None
-        }
-    }).unwrap_or_else(|| "default".to_string());
+    let profile = args
+        .windows(2)
+        .find_map(|pair| {
+            if pair[0] == "--profile" {
+                Some(pair[1].clone())
+            } else {
+                None
+            }
+        })
+        .unwrap_or_else(|| "default".to_string());
 
     // Handle --profile new: generate random ID
     let profile = if profile == "new" {
@@ -43,7 +49,9 @@ pub(super) async fn cmd_launch(ctx: &mut AppContext, args: &[String]) -> Result<
                     if let Some(ref wanted) = preferred_browser {
                         let running = detect_browser_from_port(ctx).await.unwrap_or_default();
                         if !running.to_lowercase().contains(&wanted.to_lowercase()) {
-                            bail!("Default browser already running ({running}). Use --profile <name> to launch a separate {wanted} instance.");
+                            bail!(
+                                "Default browser already running ({running}). Use --profile <name> to launch a separate {wanted} instance."
+                            );
                         }
                     }
                 }
@@ -67,7 +75,9 @@ pub(super) async fn cmd_launch(ctx: &mut AppContext, args: &[String]) -> Result<
 
     let browser = if let Some(ref name) = preferred_browser {
         find_browser_by_name(name).ok_or_else(|| {
-            anyhow!("Browser '{name}' not found. Available: chrome, edge, brave, arc, vivaldi, chromium")
+            anyhow!(
+                "Browser '{name}' not found. Available: chrome, edge, brave, arc, vivaldi, chromium"
+            )
         })?
     } else {
         find_browser().ok_or_else(|| {
@@ -111,10 +121,16 @@ pub(super) async fn cmd_launch(ctx: &mut AppContext, args: &[String]) -> Result<
     let use_open_gn = false;
 
     let mut command = if use_open_gn {
-        let app_bundle = browser.path.split(".app/Contents/MacOS/").next().unwrap().to_string() + ".app";
+        let app_bundle = browser
+            .path
+            .split(".app/Contents/MacOS/")
+            .next()
+            .unwrap()
+            .to_string()
+            + ".app";
         let mut cmd = Command::new("open");
-        cmd.arg("-g");  // don't bring to foreground
-        cmd.arg("-n");  // open new instance (don't reuse existing)
+        cmd.arg("-g"); // don't bring to foreground
+        cmd.arg("-n"); // open new instance (don't reuse existing)
         cmd.arg("-a");
         cmd.arg(&app_bundle);
         cmd.arg("--args");
@@ -241,7 +257,11 @@ pub(super) async fn cmd_connect(ctx: &mut AppContext) -> Result<bool> {
         host: Some(ctx.cdp_host.clone()),
         browser_name: ctx.launch_browser_name.clone(),
         window_id,
-        profile: if ctx.current_profile != "default" { Some(ctx.current_profile.clone()) } else { None },
+        profile: if ctx.current_profile != "default" {
+            Some(ctx.current_profile.clone())
+        } else {
+            None
+        },
         ..SessionState::default()
     };
     ctx.save_session_state(&state)?;
@@ -249,13 +269,20 @@ pub(super) async fn cmd_connect(ctx: &mut AppContext) -> Result<bool> {
         .context("failed writing last session pointer")?;
 
     out!(ctx, "Session: {session_id}");
-    out!(ctx, "Command file: {}", ctx.command_file(&session_id).display());
+    out!(
+        ctx,
+        "Command file: {}",
+        ctx.command_file(&session_id).display()
+    );
     Ok(has_own_window)
 }
 
 pub(super) async fn cmd_kill(ctx: &mut AppContext) -> Result<()> {
     let state = ctx.load_session_state()?;
-    let profile = state.profile.clone().unwrap_or_else(|| "default".to_string());
+    let profile = state
+        .profile
+        .clone()
+        .unwrap_or_else(|| "default".to_string());
 
     if profile == "default" {
         bail!("Cannot kill default profile. Use 'close' to close your tabs.");
@@ -368,7 +395,9 @@ pub(super) async fn cmd_dom(
             }
             return s;
         })()"#;
-        let suggest_result = runtime_evaluate_with_context(&mut cdp, suggest_script, true, false, context_id).await?;
+        let suggest_result =
+            runtime_evaluate_with_context(&mut cdp, suggest_script, true, false, context_id)
+                .await?;
         let suggestions = suggest_result
             .pointer("/result/value")
             .and_then(Value::as_array)
@@ -376,7 +405,10 @@ pub(super) async fn cmd_dom(
             .unwrap_or_default();
         if !suggestions.is_empty() {
             let sel_list: Vec<&str> = suggestions.iter().filter_map(Value::as_str).collect();
-            dom_output = format!("{dom_output}\n\nAvailable selectors: {}", sel_list.join(", "));
+            dom_output = format!(
+                "{dom_output}\n\nAvailable selectors: {}",
+                sel_list.join(", ")
+            );
         }
         out!(ctx, "{dom_output}");
         cdp.close().await;
@@ -428,13 +460,15 @@ pub(super) async fn cmd_axtree_interactive(
                 if !diff.0.is_empty() {
                     diff_buf.push_str("ADDED:\n");
                     for e in &diff.0 {
-                        diff_buf.push_str(&format!("  + [{}] {} \"{}\"\n", e.ref_id, e.role, e.name));
+                        diff_buf
+                            .push_str(&format!("  + [{}] {} \"{}\"\n", e.ref_id, e.role, e.name));
                     }
                 }
                 if !diff.1.is_empty() {
                     diff_buf.push_str("REMOVED:\n");
                     for e in &diff.1 {
-                        diff_buf.push_str(&format!("  - [{}] {} \"{}\"\n", e.ref_id, e.role, e.name));
+                        diff_buf
+                            .push_str(&format!("  - [{}] {} \"{}\"\n", e.ref_id, e.role, e.name));
                     }
                 }
                 if !diff.2.is_empty() {
@@ -479,7 +513,11 @@ pub(super) async fn cmd_axtree_interactive(
     Ok(())
 }
 
-pub(super) async fn cmd_axtree_full(ctx: &mut AppContext, selector: Option<&str>, max_tokens: usize) -> Result<()> {
+pub(super) async fn cmd_axtree_full(
+    ctx: &mut AppContext,
+    selector: Option<&str>,
+    max_tokens: usize,
+) -> Result<()> {
     let mut cdp = open_cdp(ctx).await?;
     prepare_cdp(ctx, &mut cdp).await?;
     cdp.send("Accessibility.enable", json!({})).await?;
@@ -551,7 +589,8 @@ pub(super) async fn cmd_read(
     // If extraction returned too little content, wait longer and retry
     if output.len() < 200 && selector.is_none() {
         wait_for_network_idle(&mut cdp, 1000, 5000).await?;
-        let retry = runtime_evaluate_with_context(&mut cdp, &script, true, false, context_id).await?;
+        let retry =
+            runtime_evaluate_with_context(&mut cdp, &script, true, false, context_id).await?;
         let retry_text = retry
             .pointer("/result/value")
             .and_then(Value::as_str)
@@ -625,10 +664,7 @@ pub(super) async fn cmd_text(
         .and_then(Value::as_array)
         .cloned()
         .unwrap_or_default();
-    let ref_map_val = parsed
-        .get("refMap")
-        .cloned()
-        .unwrap_or(json!({}));
+    let ref_map_val = parsed.get("refMap").cloned().unwrap_or(json!({}));
 
     // Save ref map to session state
     if let Some(obj) = ref_map_val.as_object() {
@@ -673,6 +709,7 @@ pub(super) async fn cmd_text(
 }
 
 pub(super) async fn cmd_click(ctx: &mut AppContext, selector: &str) -> Result<()> {
+    let tabs_before = snapshot_tab_ids(ctx).await?;
     let mut cdp = open_cdp(ctx).await?;
     prepare_cdp(ctx, &mut cdp).await?;
     let loc = locate_element(ctx, &mut cdp, selector).await?;
@@ -696,6 +733,27 @@ pub(super) async fn cmd_click(ctx: &mut AppContext, selector: &str) -> Result<()
 
     out!(ctx, "Clicked {} \"{}\"", loc.tag.to_lowercase(), loc.text);
     sleep(Duration::from_millis(150)).await;
+    let adopted = adopt_new_tabs(ctx, &tabs_before, Duration::from_millis(800)).await?;
+    if !adopted.is_empty() {
+        cdp.close().await;
+        let mut adopted_cdp = open_cdp(ctx).await?;
+        prepare_cdp(ctx, &mut adopted_cdp).await?;
+        out!(
+            ctx,
+            "Adopted {} new tab(s); switched to [{}]",
+            adopted.len(),
+            adopted
+                .iter()
+                .find(|tab| tab.url.as_deref().is_some_and(|url| url != "about:blank"))
+                .or_else(|| adopted.first())
+                .map(|tab| tab.id.as_str())
+                .unwrap_or("unknown")
+        );
+        out!(ctx, "{}", get_page_brief(&mut adopted_cdp).await?);
+        adopted_cdp.close().await;
+        return Ok(());
+    }
+
     out!(ctx, "{}", get_page_brief(&mut cdp).await?);
     cdp.close().await;
     Ok(())
@@ -705,34 +763,7 @@ pub(super) async fn cmd_type(ctx: &mut AppContext, selector: &str, text: &str) -
     let mut cdp = open_cdp(ctx).await?;
     prepare_cdp(ctx, &mut cdp).await?;
     let context_id = get_frame_context_id(ctx, &mut cdp).await?;
-
-    let focus_script = format!(
-        "(function() {{ const el = document.querySelector({sel}); if (!el) return {{ error: 'Element not found: ' + {sel} }}; el.focus(); if (el.select) el.select(); return {{ ok: true }}; }})()",
-        sel = serde_json::to_string(selector)?
-    );
-
-    let focus_result =
-        runtime_evaluate_with_context(&mut cdp, &focus_script, true, false, context_id).await?;
-    if let Some(err) = focus_result
-        .pointer("/result/value/error")
-        .and_then(Value::as_str)
-    {
-        bail!("{err}");
-    }
-
-    for ch in text.chars() {
-        let char_s = ch.to_string();
-        cdp.send(
-            "Input.dispatchKeyEvent",
-            json!({ "type": "keyDown", "text": char_s, "unmodifiedText": ch.to_string() }),
-        )
-        .await?;
-        cdp.send(
-            "Input.dispatchKeyEvent",
-            json!({ "type": "keyUp", "text": ch.to_string(), "unmodifiedText": ch.to_string() }),
-        )
-        .await?;
-    }
+    type_text_verified(&mut cdp, context_id, selector, text).await?;
 
     out!(ctx, "Typed \"{}\" into {selector}", truncate(text, 50));
     cdp.close().await;
@@ -845,7 +876,8 @@ pub(super) async fn cmd_tabs(ctx: &mut AppContext) -> Result<()> {
         } else {
             ""
         };
-        out!(ctx,
+        out!(
+            ctx,
             "[{}] {} - {}{}",
             tab.id,
             tab.title.unwrap_or_else(|| "(untitled)".to_string()),
@@ -878,7 +910,8 @@ pub(super) async fn cmd_tab(ctx: &mut AppContext, tab_id: &str) -> Result<()> {
     if !ctx.mcp_mode {
         let _ = http_put_text(ctx, &format!("/json/activate/{tab_id}")).await;
     }
-    out!(ctx,
+    out!(
+        ctx,
         "Switched to tab: {}",
         tab.title
             .or(tab.url)
@@ -894,7 +927,8 @@ pub(super) async fn cmd_new_tab(ctx: &mut AppContext, url: Option<&str>) -> Resu
     state.active_tab_id = Some(new_tab.id.clone());
     ctx.save_session_state(&state)?;
 
-    out!(ctx,
+    out!(
+        ctx,
         "New tab: [{}] {}",
         new_tab.id,
         new_tab.url.unwrap_or_else(|| "about:blank".to_string())
@@ -1009,11 +1043,16 @@ pub(super) async fn cmd_search(
     max_tokens: usize,
 ) -> Result<()> {
     // URL-encode the query inline (avoid adding dependency)
-    let encoded: String = query.bytes().map(|b| match b {
-        b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => (b as char).to_string(),
-        b' ' => "+".to_string(),
-        _ => format!("%{:02X}", b),
-    }).collect();
+    let encoded: String = query
+        .bytes()
+        .map(|b| match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                (b as char).to_string()
+            }
+            b' ' => "+".to_string(),
+            _ => format!("%{:02X}", b),
+        })
+        .collect();
 
     let search_url = match engine.unwrap_or("google") {
         "google" => format!("https://www.google.com/search?q={encoded}"),
@@ -1072,7 +1111,8 @@ pub(super) async fn cmd_readurls(
         // Run read extraction
         let script = build_read_extract_script(None)?;
         let context_id = get_frame_context_id(ctx, &mut cdp).await?;
-        let result = runtime_evaluate_with_context(&mut cdp, &script, true, false, context_id).await?;
+        let result =
+            runtime_evaluate_with_context(&mut cdp, &script, true, false, context_id).await?;
         let mut output = result
             .pointer("/result/value")
             .and_then(Value::as_str)
@@ -1126,7 +1166,11 @@ pub(super) async fn cmd_screenshot(ctx: &mut AppContext, args: &[String]) -> Res
         } else if let Some(v) = arg.strip_prefix("--selector=") {
             selector = Some(v.to_string());
         } else if let Some(v) = arg.strip_prefix("--format=") {
-            format = if v == "png" { "png".to_string() } else { "jpeg".to_string() };
+            format = if v == "png" {
+                "png".to_string()
+            } else {
+                "jpeg".to_string()
+            };
         } else if let Some(v) = arg.strip_prefix("--quality=") {
             quality = v.parse().unwrap_or(80).clamp(1, 100);
         } else if let Some(v) = arg.strip_prefix("--ref=") {
@@ -1175,8 +1219,12 @@ pub(super) async fn cmd_screenshot(ctx: &mut AppContext, args: &[String]) -> Res
             sel = serde_json::to_string(sel.as_str())?,
             pad = pad_val
         );
-        let result = runtime_evaluate_with_context(&mut cdp, &script, true, false, context_id).await?;
-        let value = result.pointer("/result/value").cloned().unwrap_or(Value::Null);
+        let result =
+            runtime_evaluate_with_context(&mut cdp, &script, true, false, context_id).await?;
+        let value = result
+            .pointer("/result/value")
+            .cloned()
+            .unwrap_or(Value::Null);
         if let Some(err) = value.get("error").and_then(Value::as_str) {
             bail!("{err}");
         }
@@ -1199,9 +1247,7 @@ pub(super) async fn cmd_screenshot(ctx: &mut AppContext, args: &[String]) -> Res
         false,
     )
     .await?;
-    let vp_arr = vp_result
-        .pointer("/result/value")
-        .and_then(Value::as_array);
+    let vp_arr = vp_result.pointer("/result/value").and_then(Value::as_array);
     let viewport_w = vp_arr
         .and_then(|a| a.first())
         .and_then(Value::as_f64)
@@ -1282,8 +1328,14 @@ pub(super) async fn cmd_screenshot(ctx: &mut AppContext, args: &[String]) -> Res
     // Estimate token cost and include in output
     let file_kb = bytes.len() / 1024;
     let est_tokens = if let Some(clip) = params.get("clip") {
-        let cw = clip.get("width").and_then(Value::as_f64).unwrap_or(viewport_w);
-        let ch = clip.get("height").and_then(Value::as_f64).unwrap_or(viewport_h);
+        let cw = clip
+            .get("width")
+            .and_then(Value::as_f64)
+            .unwrap_or(viewport_w);
+        let ch = clip
+            .get("height")
+            .and_then(Value::as_f64)
+            .unwrap_or(viewport_h);
         let cs = clip.get("scale").and_then(Value::as_f64).unwrap_or(1.0);
         let pw = (cw * cs) as u64;
         let ph = (ch * cs) as u64;
@@ -1294,7 +1346,12 @@ pub(super) async fn cmd_screenshot(ctx: &mut AppContext, args: &[String]) -> Res
         (pw * ph) / 750
     };
     out!(ctx, "Screenshot saved to {}", out.display());
-    out!(ctx, "Size: {}KB | Est. vision tokens: ~{}", file_kb, est_tokens);
+    out!(
+        ctx,
+        "Size: {}KB | Est. vision tokens: ~{}",
+        file_kb,
+        est_tokens
+    );
     if est_tokens > 500 && ref_id.is_none() && selector.is_none() {
         out!(ctx, "Tip: Use ref=N, selector, or --width to reduce cost.");
     }
@@ -1348,7 +1405,8 @@ pub(super) async fn cmd_grid(ctx: &mut AppContext, args: &[String]) -> Result<()
             false,
             false,
             context_id,
-        ).await?;
+        )
+        .await?;
         out!(ctx, "Grid overlay removed.");
         return Ok(());
     }
@@ -1359,7 +1417,10 @@ pub(super) async fn cmd_grid(ctx: &mut AppContext, args: &[String]) -> Result<()
     } else if first.contains('x') {
         let parts: Vec<&str> = first.split('x').collect();
         let c = parts[0].parse::<u32>().unwrap_or(10);
-        let r = parts.get(1).and_then(|s| s.parse::<u32>().ok()).unwrap_or(10);
+        let r = parts
+            .get(1)
+            .and_then(|s| s.parse::<u32>().ok())
+            .unwrap_or(10);
         (c, r)
     } else if let Ok(px) = first.parse::<u32>() {
         // px cell size — we'll compute cols/rows from viewport in JS
@@ -1371,7 +1432,8 @@ pub(super) async fn cmd_grid(ctx: &mut AppContext, args: &[String]) -> Result<()
 
     let script = if rows == 0 {
         // Pixel mode: cols holds the cell size in px
-        format!(r#"(function() {{
+        format!(
+            r#"(function() {{
             document.getElementById('webact-grid-overlay')?.remove();
             const px = {cols};
             const vw = window.innerWidth, vh = window.innerHeight;
@@ -1391,9 +1453,11 @@ pub(super) async fn cmd_grid(ctx: &mut AppContext, args: &[String]) -> Result<()
             }}
             document.body.appendChild(d);
             return {{ cols: c, rows: r, cellPx: px }};
-        }})()"#)
+        }})()"#
+        )
     } else {
-        format!(r#"(function() {{
+        format!(
+            r#"(function() {{
             document.getElementById('webact-grid-overlay')?.remove();
             const cols = {cols}, rows = {rows};
             const vw = window.innerWidth, vh = window.innerHeight;
@@ -1413,7 +1477,8 @@ pub(super) async fn cmd_grid(ctx: &mut AppContext, args: &[String]) -> Result<()
             }}
             document.body.appendChild(d);
             return {{ cols, rows, cellW: Math.round(cw), cellH: Math.round(ch) }};
-        }})()"#)
+        }})()"#
+        )
     };
 
     let result = runtime_evaluate_with_context(&mut cdp, &script, true, false, context_id).await?;
@@ -1421,7 +1486,10 @@ pub(super) async fn cmd_grid(ctx: &mut AppContext, args: &[String]) -> Result<()
     if let Some(val) = result.pointer("/result/value") {
         let c = val.get("cols").and_then(Value::as_u64).unwrap_or(0);
         let r = val.get("rows").and_then(Value::as_u64).unwrap_or(0);
-        out!(ctx, "Grid overlay: {c}x{r}. Each cell shows its center coordinate. Use 'grid off' to remove.");
+        out!(
+            ctx,
+            "Grid overlay: {c}x{r}. Each cell shows its center coordinate. Use 'grid off' to remove."
+        );
     } else {
         out!(ctx, "Grid overlay applied.");
     }
