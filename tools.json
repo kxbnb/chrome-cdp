@@ -1142,13 +1142,13 @@
   },
   {
     "name": "batch",
-    "description": "Execute multiple actions sequentially in one call. Stops on first error. Smart waits: auto-waits 500ms after state-changing actions (navigate, click, fill, select, type). Per-action 'wait' field overrides smart default.",
+    "description": "Execute multiple actions sequentially in one call. Stops on the first non-optional error. Smart waits: auto-waits 500ms after successful state-changing actions (navigate, click, doubleclick, humanclick, fill, select, type). Per-action 'wait' field overrides smart default.",
     "inputSchema": {
       "type": "object",
       "properties": {
         "actions": {
           "type": "array",
-          "description": "Array of actions to execute. Each action has 'tool' (command name) and tool-specific fields (same as individual tool params). Optional 'wait' (ms) per action.",
+          "description": "Array of actions to execute. Each action has 'tool' (command name) and tool-specific fields (same as individual tool params). Optional per-action controls: 'wait' (ms), 'retries', 'retry_delay' (ms), and 'optional'.",
           "items": {
             "type": "object",
             "properties": {
@@ -1159,6 +1159,18 @@
               "wait": {
                 "type": "integer",
                 "description": "Wait this many ms after this action (overrides smart default)"
+              },
+              "retries": {
+                "type": "integer",
+                "description": "Retry this action this many additional times if it fails"
+              },
+              "retry_delay": {
+                "type": "integer",
+                "description": "Wait this many ms between retry attempts"
+              },
+              "optional": {
+                "type": "boolean",
+                "description": "If true, a failed action is recorded but does not abort the batch"
               }
             },
             "required": ["tool"]

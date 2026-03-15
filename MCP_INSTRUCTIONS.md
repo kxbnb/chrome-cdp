@@ -218,17 +218,21 @@ Use `batch` to execute multiple actions in one call, reducing round-trips:
 
 ```json
 {"actions": [
-  {"tool": "click", "target": "--text Submit"},
+  {"tool": "click", "target": "--text Continue", "retries": 2, "retry_delay": 400},
   {"tool": "waitfornav"},
+  {"tool": "click", "target": "--text Not now", "optional": true},
   {"tool": "screenshot", "output": "/tmp/result.png"},
   {"tool": "press", "key": "Escape", "wait": 500}
 ], "delay": 0}
 ```
 
 - Actions run sequentially using the same arg format as individual tools
-- Stops on first error, returns all results up to that point
-- **Smart waits:** auto-waits 500ms after state-changing actions (navigate, click, fill, select, type)
+- Stops on the first non-optional error, returns all results up to that point
+- **Smart waits:** auto-waits 500ms after successful state-changing actions (`navigate`, `click`, `doubleclick`, `humanclick`, `fill`, `select`, `type`)
 - **Per-action `wait`:** override smart default with ms delay
+- **Per-action `retries`:** retry a failed action N extra times before giving up
+- **Per-action `retry_delay`:** ms delay between retry attempts
+- **Per-action `optional`:** record the failure and continue to the next action
 - **Global `delay`:** ms between every action (additive with smart waits)
 
 ## Grid Overlay

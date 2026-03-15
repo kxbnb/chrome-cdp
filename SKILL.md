@@ -142,10 +142,13 @@ webact dom
 - `webact launch --profile new` auto-generates a profile ID and returns it.
 - Each profile runs its own browser process on its own port. Custom profiles can be killed with `webact kill`.
 
-**`batch`:** Execute multiple actions sequentially in one call. Use a JSON array of actions. Smart waits are applied after state-changing actions (`navigate`, `click`, `fill`, `select`, `type`).
+**`batch`:** Execute multiple actions sequentially in one call. Use a JSON array of actions. Smart waits are applied after successful state-changing actions (`navigate`, `click`, `fill`, `select`, `type`). Batch stops on the first non-optional error.
 ```bash
 webact batch '{"actions": [{"tool": "click", "target": "--text Submit"}, {"tool": "waitfornav"}]}'
 ```
+- Add `"retries": N` and `"retry_delay": ms` to retry flaky steps.
+- Add `"optional": true` for dismissals or branches that can fail without aborting the batch.
+- Add `"wait": ms` to override the post-step smart wait for a specific action.
 
 **`grid`:** Overlay a coordinate grid for targeting elements in canvas/image-heavy apps. Each cell displays its center coordinate.
 - `webact grid` (default 10x10)
