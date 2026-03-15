@@ -1086,6 +1086,52 @@ mod tests {
     }
 
     #[test]
+    fn batch_output_no_screenshots_returns_text_as_is() {
+        let output = r#"{"completed":2,"total":2,"error":null,"results":[{"tool":"click","ok":true,"output":"Clicked","attempts":1},{"tool":"read","ok":true,"output":"Page text","attempts":1}]}"#;
+        let args = json!({"actions":[{"tool":"click","target":"--text Foo"},{"tool":"read"}]});
+        let result = handle_batch_output(output, &args).unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0]["type"], "text");
+    }
+
+    #[test]
+    fn batch_output_with_screenshot_with_output_path_returns_text_as_is() {
+        let output = r#"{"completed":1,"total":1,"error":null,"results":[{"tool":"screenshot","ok":true,"output":"Screenshot saved to /tmp/test.png","attempts":1}]}"#;
+        let args = json!({"actions":[{"tool":"screenshot","output":"/tmp/test.png"}]});
+        let result = handle_batch_output(output, &args).unwrap();
+        // Has output path → not inline, returns as-is
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0]["type"], "text");
+    }
+
+    #[test]
+    fn batch_output_with_inline_screenshot_marks_result() {
+        // Screenshot without output path, but file doesn't exist — should still mark inline
+        let output = r#"{"completed":2,"total":2,"error":null,"results":[{"tool":"click","ok":true,"output":"Clicked","attempts":1},{"tool":"screenshot","ok":true,"output":"Screenshot saved to /tmp/nonexistent-webact-test.png","attempts":1}]}"#;
+        let args = json!({"actions":[{"tool":"click","target":"--text Foo"},{"tool":"screenshot"}]});
+        let result = handle_batch_output(output, &args).unwrap();
+        // File doesn't exist so handle_screenshot_output falls back to text
+        // but the batch result should still be processed (screenshot_inline marker)
+        assert_eq!(result[0]["type"], "text");
+        let batch_json: Value = serde_json::from_str(result[0]["text"].as_str().unwrap()).unwrap();
+        let results = batch_json["results"].as_array().unwrap();
+        assert_eq!(results[0]["tool"], "click");
+        assert!(results[0].get("screenshot_inline").is_none());
+        assert_eq!(results[1]["tool"], "screenshot");
+        assert_eq!(results[1]["screenshot_inline"], true);
+    }
+
+    #[test]
+    fn batch_output_invalid_json_returns_plain_text() {
+        let output = "not json at all";
+        let args = json!({"actions":[]});
+        let result = handle_batch_output(output, &args).unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0]["type"], "text");
+        assert_eq!(result[0]["text"], "not json at all");
+    }
+
+    #[test]
     fn tools_list_includes_common_timeout_property() {
         let tools = build_mcp_tools().unwrap();
         let first_tool = tools.as_array().and_then(|v| v.first()).unwrap();
